@@ -105,13 +105,17 @@ Crossing the Valley: frontdoordefense.substack.com/feed (filter_palantir: true)
 - Sorted by award value desc within the USASpending block
 - us_spending.py scraper now fetches full history (no 90-day limit), up to 20 pages
 
-## What's NOT Done Yet
-- GitHub repo not yet created (user hasn't pushed yet)
-- GitHub Pages not yet enabled
+## GitHub / Hosting (DONE)
+- Repo: https://github.com/Bazzmatazz42/palantir-dashboard
+- Dashboard (GitHub Pages): https://bazzmatazz42.github.io/palantir-dashboard/
+- GitHub Actions daily scraper: runs 08:00 UTC, can be manually triggered from Actions tab
+- Root index.html redirects to palantir-dashboard/ for Pages compatibility
+- gh CLI installed via winget, auth with workflow scope
 
 ## Pending Decisions / Next Steps
-- Build GitHub repo + enable Actions for daily scraper
 - data.js still manual — export button bridges the gap (copy/download approved JS)
+- YouTube scraper not yet built (podcasts are display-only in Sources panel)
+- X scraping is DuckDuckGo-based (no direct X API — paid)
 
 ## Export Approved Button (DONE)
 - Appears in Inbox tab header when approved contract_api items exist
