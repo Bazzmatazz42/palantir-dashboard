@@ -1,0 +1,67 @@
+{
+  "x_accounts": [
+    { "handle": "PalantirTech",       "tier": 1, "category": "official" },
+    { "handle": "ssankar",            "tier": 1, "category": "leadership" },
+    { "handle": "traestephens",       "tier": 1, "category": "leadership" },
+    { "handle": "JTLonsdale",         "tier": 1, "category": "leadership" },
+    { "handle": "PLTRs_Palantir",     "tier": 2, "category": "community" },
+    { "handle": "amitisinvesting",    "tier": 2, "category": "analyst" },
+    { "handle": "arny_trezzi",        "tier": 2, "category": "analyst" },
+    { "handle": "dsmiley411",         "tier": 2, "category": "analyst" },
+    { "handle": "muddywatersre",      "tier": 2, "category": "analyst" },
+    { "handle": "chamath",            "tier": 2, "category": "investor" },
+    { "handle": "BreakingDefense",    "tier": 1, "category": "defense_media" },
+    { "handle": "DefenseOne",         "tier": 1, "category": "defense_media" },
+    { "handle": "C4ISRNET",           "tier": 1, "category": "defense_media" },
+    { "handle": "defense_news",       "tier": 1, "category": "defense_media" },
+    { "handle": "FedScoop",           "tier": 1, "category": "media" },
+    { "handle": "NextgovFCW",         "tier": 1, "category": "media" },
+    { "handle": "GovConWire",         "tier": 1, "category": "media" },
+    { "handle": "HillValleyForum",    "tier": 1, "category": "defense_policy" },
+    { "handle": "CSETGeorgetown",     "tier": 2, "category": "policy" },
+    { "handle": "CNASdc",             "tier": 2, "category": "policy" },
+    { "handle": "paul_scharre",       "tier": 2, "category": "policy" },
+    { "handle": "DefenceHQ",          "tier": 1, "category": "official" },
+    { "handle": "FirstBreakfast",     "tier": 1, "category": "analyst",      "note": "First Breakfast — Palantir-focused publication (official account)" },
+    { "handle": "NSheinbaum",         "tier": 2, "category": "defense_media", "note": "Crossing the Valley podcast/newsletter" },
+    { "handle": "Madeline_Zimm",      "tier": 2, "category": "analyst",      "note": "First Breakfast / Kinetic Reviews" },
+    { "handle": "BlakeSeitz",         "tier": 2, "category": "analyst",      "note": "First Breakfast / Palantir Content Strategist" }
+  ],
+  "rss_feeds": [
+    { "name": "Shyam Sankar",           "url": "https://shyamsankar.com/feed",                    "category": "leadership",    "filter_palantir": false },
+    { "name": "Amit Kukreja",           "url": "https://amitsdeepdives.substack.com/feed",         "category": "analyst",       "filter_palantir": false },
+    { "name": "Arny Trezzi",            "url": "https://arnytrezzi.substack.com/feed",             "category": "analyst",       "filter_palantir": false },
+    { "name": "Palantir (Medium)",      "url": "https://medium.com/feed/palantir",                 "category": "official",      "filter_palantir": false },
+    { "name": "Breaking Defense",       "url": "https://breakingdefense.com/feed/",                "category": "defense_media", "filter_palantir": true },
+    { "name": "Defense One",            "url": "https://www.defenseone.com/rss/all/",              "category": "defense_media", "filter_palantir": true },
+    { "name": "C4ISRNET",               "url": "https://www.c4isrnet.com/arc/outboundfeeds/rss/", "category": "defense_media", "filter_palantir": true },
+    { "name": "FedScoop",               "url": "https://fedscoop.com/feed/",                       "category": "media",         "filter_palantir": true },
+    { "name": "War on the Rocks",       "url": "https://warontherocks.com/feed/",                  "category": "defense_media", "filter_palantir": true },
+    { "name": "Lawfare",                "url": "https://lawfaremedia.org/feed/",                   "category": "media",         "filter_palantir": true },
+    { "name": "Import AI",              "url": "https://importai.substack.com/feed",               "category": "media",         "filter_palantir": true },
+    { "name": "Big Technology",         "url": "https://bigtechnology.substack.com/feed",           "category": "media",         "filter_palantir": true },
+    { "name": "Nonzero Newsletter",     "url": "https://nonzero.substack.com/feed",                "category": "media",         "filter_palantir": true },
+    { "name": "First Breakfast",        "url": "https://firstbreakfast.substack.com/feed",         "category": "analyst",       "filter_palantir": false, "note": "Palantir-focused Substack by Shyam Sankar, Madeline Hart, Greg Little, Blake Seitz" },
+    { "name": "Crossing the Valley",    "url": "https://frontdoordefense.substack.com/feed",       "category": "defense_media", "filter_palantir": true,  "note": "Defense tech podcast/newsletter by Noah Sheinbaum" }
+  ],
+  "contract_apis": [
+    { "name": "USASpending.gov",     "module": "us_spending",       "country": "United States" },
+    { "name": "UK Contracts Finder", "module": "uk_contracts",      "country": "United Kingdom" },
+    { "name": "EU TED",              "module": "eu_ted",            "country": "EU/NATO" },
+    { "name": "CanadaBuys",          "module": "canada",            "country": "Canada" },
+    { "name": "AusTender",           "module": "australia",         "country": "Australia" },
+    { "name": "Prozorro",            "module": "ukraine_prozorro",  "country": "Ukraine" }
+  ],
+  "podcasts": [
+    { "name": "Palantir Tech (Official)", "channel": "palantirtech",   "platform": "YouTube", "category": "official",     "filter_palantir": false, "palantir_specific": true  },
+    { "name": "Code and Connor",      "channel": "codestrap8031",      "platform": "YouTube", "category": "analyst",      "filter_palantir": false, "palantir_specific": true  },
+    { "name": "American Optimist",    "channel": "Joe_Lonsdale",       "platform": "YouTube", "category": "leadership",   "filter_palantir": true,  "palantir_specific": false },
+    { "name": "Palantir Bullets",     "channel": "ArnyTrezzi",         "platform": "YouTube", "category": "analyst",      "filter_palantir": false, "palantir_specific": true  },
+    { "name": "Palantir Weekly",      "channel": "AmitKukreja",        "platform": "YouTube", "category": "analyst",      "filter_palantir": false, "palantir_specific": true  },
+    { "name": "Odd Lots",             "url": "https://youtube.com/playlist?list=PLe4PRejZgr0MuA6M0zkZyy-99-qc87wKV", "platform": "YouTube", "category": "media", "filter_palantir": true, "palantir_specific": false }
+  ],
+  "disclosure_sources": [
+    { "name": "SEC EDGAR (8-K)",    "module": "sec_edgar",    "cik": "0001321655" },
+    { "name": "Palantir IR",        "module": "palantir_ir",  "url": "https://investors.palantir.com/news-releases" }
+  ]
+}
