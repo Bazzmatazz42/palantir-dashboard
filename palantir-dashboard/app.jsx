@@ -2030,7 +2030,7 @@ function PalantirDashboard() {
           ))}
         </div>
       </div>
-      <div style={{ padding: "20px 28px 40px", maxWidth: 1200 }}>
+      <div style={{ padding: "20px 28px 40px" }}>
         {tab === "Overview" && renderOverview()}
         {tab === "Explorer" && renderExplorer()}
         {tab === "By Country" && renderByCountry()}
