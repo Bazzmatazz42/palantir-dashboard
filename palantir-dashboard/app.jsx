@@ -113,6 +113,18 @@ function PalantirDashboard() {
   // ===== GLOBAL TIME-SERIES VIEW MODE =====
   const [viewMode, setViewMode] = useState("annual"); // "annual" | "cumulative"
 
+  // ===== GLOBAL DATA FILTERS =====
+  const [gYear, setGYear] = useState("All");
+  const [gSector, setGSector] = useState("All");
+  const [gCountry, setGCountry] = useState("All");
+
+  // ===== DEAL FLOW SIZE MODE =====
+  const [sizeMode, setSizeMode] = useState("overview"); // "overview" | "byYear"
+
+  // ===== PER-CHART SORT CONTROLS =====
+  const [sectorSort, setSectorSort] = useState("value");
+  const [countrySort, setCountrySort] = useState("value");
+
   const pendingCount = useMemo(
     () => pendingItems.filter(i => !approved.has(i.id) && !declined.has(i.id)).length,
     [pendingItems, approved, declined]
@@ -206,8 +218,23 @@ function PalantirDashboard() {
   const sectors = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.sector).sort())], []);
   const statuses = ["All", "Active", "Completed", "Under Review"];
 
+  // ===== GLOBAL FILTER OPTION LISTS =====
+  const allYears = useMemo(() => ["All", ...Array.from(new Set(CONTRACTS.map(c => c.year).filter(Boolean))).sort((a,b) => b-a)], []);
+  const allSectors = useMemo(() => ["All", ...Array.from(new Set(CONTRACTS.map(c => c.sector).filter(Boolean))).sort()], []);
+  const allCountries = useMemo(() => ["All", ...Array.from(new Set(CONTRACTS.map(c => c.country).filter(Boolean))).sort()], []);
+
+  // ===== GLOBALLY FILTERED CONTRACT SET =====
+  const filteredContracts = useMemo(() => {
+    return CONTRACTS.filter(c => {
+      if (gYear !== "All" && c.year !== Number(gYear)) return false;
+      if (gSector !== "All" && c.sector !== gSector) return false;
+      if (gCountry !== "All" && c.country !== gCountry) return false;
+      return true;
+    });
+  }, [gYear, gSector, gCountry]);
+
   const filtered = useMemo(() => {
-    let data = CONTRACTS;
+    let data = filteredContracts;
     if (search) {
       const s = search.toLowerCase();
       data = data.filter(c => c.name.toLowerCase().includes(s) || c.entity.toLowerCase().includes(s) || c.product.toLowerCase().includes(s) || c.sub.toLowerCase().includes(s) || (c.statusDetail || "").toLowerCase().includes(s));
@@ -224,12 +251,12 @@ function PalantirDashboard() {
       return 0;
     });
     return data;
-  }, [search, filterYear, filterCountry, filterSector, filterStatus, sortCol, sortDir]);
+  }, [filteredContracts, search, filterYear, filterCountry, filterSector, filterStatus, sortCol, sortDir]);
 
-  const totalVal = useMemo(() => CONTRACTS.reduce((s, c) => s + (c.value || 0), 0), []);
-  const activeVal = useMemo(() => CONTRACTS.filter(c => c.status === "Active").reduce((s, c) => s + (c.value || 0), 0), []);
-  const activeCount = CONTRACTS.filter(c => c.status === "Active").length;
-  const countryCount = new Set(CONTRACTS.map(c => c.country)).size;
+  const totalVal = useMemo(() => filteredContracts.reduce((s, c) => s + (c.value || 0), 0), [filteredContracts]);
+  const activeVal = useMemo(() => filteredContracts.filter(c => c.status === "Active").reduce((s, c) => s + (c.value || 0), 0), [filteredContracts]);
+  const activeCount = useMemo(() => filteredContracts.filter(c => c.status === "Active").length, [filteredContracts]);
+  const countryCount = useMemo(() => new Set(filteredContracts.map(c => c.country)).size, [filteredContracts]);
 
   const toggleSort = useCallback((col) => {
     if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -237,20 +264,24 @@ function PalantirDashboard() {
   }, [sortCol]);
 
   const bySector = useMemo(() => {
-    const map = {};
-    CONTRACTS.forEach(c => { map[c.sector] = (map[c.sector] || 0) + (c.value || 0); });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, []);
+    const map = {}; const countMap = {};
+    filteredContracts.forEach(c => { map[c.sector] = (map[c.sector] || 0) + (c.value || 0); countMap[c.sector] = (countMap[c.sector] || 0) + 1; });
+    const arr = Object.entries(map).map(([name, value]) => ({ name, value, count: countMap[name] || 0 }));
+    if (sectorSort === "count") return arr.sort((a, b) => b.count - a.count);
+    return arr.sort((a, b) => b.value - a.value);
+  }, [filteredContracts, sectorSort]);
 
   const byCountry = useMemo(() => {
-    const map = {};
-    CONTRACTS.forEach(c => { map[c.country] = (map[c.country] || 0) + (c.value || 0); });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, []);
+    const map = {}; const countMap = {};
+    filteredContracts.forEach(c => { map[c.country] = (map[c.country] || 0) + (c.value || 0); countMap[c.country] = (countMap[c.country] || 0) + 1; });
+    const arr = Object.entries(map).map(([name, value]) => ({ name, value, count: countMap[name] || 0 }));
+    if (countrySort === "count") return arr.sort((a, b) => b.count - a.count);
+    return arr.sort((a, b) => b.value - a.value);
+  }, [filteredContracts, countrySort]);
 
   const byYear = useMemo(() => {
     const map = {};
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       if (!c.year) return;
       if (!map[c.year]) map[c.year] = { year: c.year, total: 0, count: 0, cumulative: 0 };
       map[c.year].total += (c.value || 0);
@@ -260,19 +291,19 @@ function PalantirDashboard() {
     let cum = 0;
     arr.forEach(d => { cum += d.total; d.cumulative = cum; });
     return arr;
-  }, []);
+  }, [filteredContracts]);
 
   // US Gov vs International by year (stacked bar — Overview)
   const byYearRegion = useMemo(() => {
     const map = {};
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       if (!c.year) return;
       if (!map[c.year]) map[c.year] = { year: c.year, "US Gov": 0, "International": 0 };
       if (c.country === "United States") map[c.year]["US Gov"] += (c.value || 0);
       else map[c.year]["International"] += (c.value || 0);
     });
     return Object.values(map).sort((a, b) => a.year - b.year);
-  }, []);
+  }, [filteredContracts]);
 
   // Cumulative US Gov vs International (for global viewMode)
   const byYearRegionCumul = useMemo(() => {
@@ -295,32 +326,32 @@ function PalantirDashboard() {
       { name: "$500M–$1B",    min: 500,  max: 1000,     count: 0, total: 0, contracts: [] },
       { name: "> $1B",        min: 1000, max: Infinity,  count: 0, total: 0, contracts: [] },
     ];
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       const v = c.value || 0;
       const b = buckets.find(b => v >= b.min && v < b.max);
       if (b) { b.count++; b.total += v; b.contracts.push(c); }
     });
     return buckets.filter(b => b.count > 0);
-  }, []);
+  }, [filteredContracts]);
 
   // Top countries by value (horizontal bar — replaces donut)
   const topCountries = useMemo(() => {
     const map = {};
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       map[c.country] = (map[c.country] || 0) + (c.value || 0);
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 15);
-  }, []);
+  }, [filteredContracts]);
 
   // Avg and max contract value (stat cards)
   const avgContractVal = useMemo(() => {
-    const valued = CONTRACTS.filter(c => c.value);
+    const valued = filteredContracts.filter(c => c.value);
     return valued.length ? valued.reduce((s, c) => s + c.value, 0) / valued.length : 0;
-  }, []);
-  const maxContract = useMemo(() => CONTRACTS.reduce((m, c) => (c.value || 0) > (m.value || 0) ? c : m, {}), []);
+  }, [filteredContracts]);
+  const maxContract = useMemo(() => filteredContracts.reduce((m, c) => (c.value || 0) > (m.value || 0) ? c : m, {}), [filteredContracts]);
 
   // Top contracts by run rate for Run Rate tab
   const topByRunRate = useMemo(() => {
@@ -334,16 +365,16 @@ function PalantirDashboard() {
 
   const byEntity = useMemo(() => {
     const map = {};
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       const key = c.entity.length > 28 ? c.entity.slice(0, 26) + "\u2026" : c.entity;
       map[key] = (map[key] || 0) + (c.value || 0);
     });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 12);
-  }, []);
+  }, [filteredContracts]);
 
   const countryDetail = useMemo(() => {
     const map = {};
-    CONTRACTS.forEach(c => {
+    filteredContracts.forEach(c => {
       if (!map[c.country]) map[c.country] = { contracts: [], total: 0, count: 0 };
       map[c.country].contracts.push(c);
       map[c.country].total += (c.value || 0);
@@ -356,7 +387,7 @@ function PalantirDashboard() {
       if (byCountrySort === "name")  return byCountrySortDir === "desc" ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0]);
       return bd.total - ad.total;
     });
-  }, [byCountrySort, byCountrySortDir]);
+  }, [filteredContracts, byCountrySort, byCountrySortDir]);
 
   const Select = ({ value, onChange, options, label }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -375,13 +406,13 @@ function PalantirDashboard() {
 
   // ===== OVERVIEW TAB =====
   const renderOverview = () => {
-    const usGovTotal = CONTRACTS.filter(c => c.country === "United States").reduce((s, c) => s + (c.value || 0), 0);
+    const usGovTotal = filteredContracts.filter(c => c.country === "United States").reduce((s, c) => s + (c.value || 0), 0);
     const usGovPct = totalVal > 0 ? ((usGovTotal / totalVal) * 100).toFixed(0) : 0;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         {/* Stat cards */}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-          <Stat label="Total Contracts" value={CONTRACTS.length} sub="Since 2005" color={COLORS.accent} />
+          <Stat label="Total Contracts" value={filteredContracts.length} sub={filteredContracts.length === CONTRACTS.length ? "Since 2005" : `of ${CONTRACTS.length} total`} color={COLORS.accent} />
           <Stat label="Active Deals" value={activeCount} sub={`${fmt(activeVal)} ceiling`} color={COLORS.green} />
           <Stat label="Total Ceiling Value" value={fmt(totalVal)} sub="All currencies (USD equiv.)" color={COLORS.gold} />
           <Stat label="US Gov Share" value={`${usGovPct}%`} sub={`${fmt(usGovTotal)} of total`} color={COLORS.purple} />
@@ -393,14 +424,21 @@ function PalantirDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
           {/* Sector value */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>VALUE BY SECTOR ($M)</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>VALUE BY SECTOR</div>
+              <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
+                {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
+                  <button key={v} onClick={() => setSectorSort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: sectorSort === v ? COLORS.accent : "transparent", color: sectorSort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                ))}
+              </div>
+            </div>
             <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.filter(d => d.value > 0).length} sectors · {bySector.filter(d => d.value === 0).length} undisclosed</div>
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={bySector.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}>
-                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+              <BarChart data={bySector.filter(d => sectorSort === "count" ? d.count > 0 : d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}>
+                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={sectorSort === "count" ? v => v : v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v) => sectorSort === "count" ? [`${v} contracts`, "Count"] : [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                <Bar dataKey={sectorSort} radius={[0, 4, 4, 0]} maxBarSize={24} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => sectorSort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
                   {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Bar>
               </BarChart>
@@ -409,9 +447,16 @@ function PalantirDashboard() {
 
           {/* Top countries */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>VALUE BY COUNTRY ($M)</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>BY COUNTRY</div>
+              <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
+                {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
+                  <button key={v} onClick={() => setCountrySort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: countrySort === v ? COLORS.gold : "transparent", color: countrySort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                ))}
+              </div>
+            </div>
             {(() => {
-              const disclosedCountries = topCountries.filter(d => d.value > 0);
+              const disclosedCountries = countrySort === "count" ? byCountry.filter(d => d.count > 0).slice(0, 15) : topCountries.filter(d => d.value > 0);
               const undisclosedCount = byCountry.filter(d => d.value === 0).length;
               return (
                 <>
@@ -420,10 +465,10 @@ function PalantirDashboard() {
                   </div>
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={disclosedCountries} layout="vertical" margin={{ left: 10, right: 56 }}>
-                      <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                      <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={countrySort === "count" ? v => v : v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
                       <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={14} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                      <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => countrySort === "count" ? [`${v} contracts`, "Count"] : [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                      <Bar dataKey={countrySort} radius={[0, 4, 4, 0]} maxBarSize={14} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => countrySort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
                         {disclosedCountries.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Bar>
                     </BarChart>
@@ -741,15 +786,15 @@ function PalantirDashboard() {
     })();
     const dealFlowData = viewMode === "cumulative" ? byYearCountCumul : byYearCount;
     const statusData = [
-      { name: "Active",       value: CONTRACTS.filter(c => c.status === "Active").length,       fill: COLORS.green },
-      { name: "Completed",    value: CONTRACTS.filter(c => c.status === "Completed").length,    fill: COLORS.textMuted },
-      { name: "Under Review", value: CONTRACTS.filter(c => c.status === "Under Review").length, fill: COLORS.gold },
+      { name: "Active",       value: filteredContracts.filter(c => c.status === "Active").length,       fill: COLORS.green },
+      { name: "Completed",    value: filteredContracts.filter(c => c.status === "Completed").length,    fill: COLORS.textMuted },
+      { name: "Under Review", value: filteredContracts.filter(c => c.status === "Under Review").length, fill: COLORS.gold },
     ];
     const procurementData = {};
-    CONTRACTS.forEach(c => { procurementData[c.procurement] = (procurementData[c.procurement] || 0) + 1; });
+    filteredContracts.forEach(c => { procurementData[c.procurement] = (procurementData[c.procurement] || 0) + 1; });
     const procArr = Object.entries(procurementData).map(([name, value]) => ({ name: name.length > 22 ? name.slice(0, 20) + "\u2026" : name, value })).sort((a, b) => b.value - a.value);
     const productData = {};
-    CONTRACTS.forEach(c => { c.product.split(",").forEach(p => { const key = p.trim(); if (key) productData[key] = (productData[key] || 0) + 1; }); });
+    filteredContracts.forEach(c => { c.product.split(",").forEach(p => { const key = p.trim(); if (key) productData[key] = (productData[key] || 0) + 1; }); });
     const prodArr = Object.entries(productData).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
 
     return (
@@ -778,10 +823,10 @@ function PalantirDashboard() {
           {/* Col 2: Status breakdown */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>STATUS BREAKDOWN</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 16 }}>{CONTRACTS.length} total contracts</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 16 }}>{filteredContracts.length} contracts{filteredContracts.length < CONTRACTS.length ? ` (of ${CONTRACTS.length})` : ""}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {statusData.map(s => {
-                const pct = ((s.value / CONTRACTS.length) * 100).toFixed(0);
+                const pct = filteredContracts.length ? ((s.value / filteredContracts.length) * 100).toFixed(0) : 0;
                 return (
                   <div key={s.name}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
@@ -805,8 +850,15 @@ function PalantirDashboard() {
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
-                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 3 }}>By contract ceiling value · click any bar to see constituent contracts</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
+                    <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
+                      {[["overview","Overview"],["byYear","By Year"]].map(([v,l]) => (
+                        <button key={v} onClick={() => setSizeMode(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: sizeMode === v ? COLORS.accent : "transparent", color: sizeMode === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 3 }}>{sizeMode === "byYear" ? "Stacked count by year and bucket · filtered set" : "By contract ceiling value · click any bar to see constituent contracts"}</div>
                 </div>
                 {/* Inline legend — color swatches right-aligned inside the card header */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", justifyContent: "flex-end", maxWidth: "60%" }}>
@@ -818,6 +870,40 @@ function PalantirDashboard() {
                   ))}
                 </div>
               </div>
+              {sizeMode === "byYear" ? (
+                (() => {
+                  const BUCKET_NAMES = ["< $1M","$1M–$5M","$5M–$25M","$25M–$100M","$100M–$500M","$500M–$1B","> $1B"];
+                  const BUCKET_MIN =   [0, 1, 5, 25, 100, 500, 1000];
+                  const BUCKET_MAX =   [1, 5, 25, 100, 500, 1000, Infinity];
+                  const yearBucketMap = {};
+                  filteredContracts.forEach(c => {
+                    if (!c.year) return;
+                    if (!yearBucketMap[c.year]) yearBucketMap[c.year] = {};
+                    const v = c.value || 0;
+                    BUCKET_NAMES.forEach((bn, bi) => {
+                      if (v >= BUCKET_MIN[bi] && v < BUCKET_MAX[bi]) {
+                        yearBucketMap[c.year][bn] = (yearBucketMap[c.year][bn] || 0) + 1;
+                      }
+                    });
+                  });
+                  const byYearData = Object.entries(yearBucketMap).map(([year, bkts]) => ({ year: Number(year), ...bkts })).sort((a, b) => a.year - b.year);
+                  const activeBuckets = BUCKET_NAMES.filter(bn => byYearData.some(d => d[bn]));
+                  return (
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={byYearData} margin={{ left: 10, right: 20, top: 24, bottom: 10 }} barCategoryGap="18%">
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
+                        <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: "Contracts", angle: -90, position: "insideLeft", fill: COLORS.textMuted, fontSize: 9, dy: 30 }} />
+                        <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} />
+                        <Legend wrapperStyle={{ fontSize: 9, color: COLORS.textDim }} />
+                        {activeBuckets.map((bn, bi) => (
+                          <Bar key={bn} dataKey={bn} stackId="a" fill={PIE_COLORS[BUCKET_NAMES.indexOf(bn) % PIE_COLORS.length]} radius={bi === activeBuckets.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()
+              ) : (
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={valueBuckets} margin={{ left: 10, right: 20, top: 24, bottom: 30 }} barCategoryGap="18%"
                   onClick={e => { if (e && e.activePayload && e.activePayload[0]) setSizeDrill(e.activePayload[0].payload.name); }}>
@@ -837,6 +923,7 @@ function PalantirDashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              )}
             </>
           ) : (
             (() => {
@@ -890,7 +977,7 @@ function PalantirDashboard() {
                   const origName = Object.entries(procurementData).sort((a,b)=>b[1]-a[1])[i]?.[0] || "";
                   return d.name === procDrill || origName === procDrill;
                 });
-                const drillContracts = CONTRACTS.filter(c => {
+                const drillContracts = filteredContracts.filter(c => {
                   const p = (c.procurement || "").trim();
                   const truncated = p.length > 22 ? p.slice(0, 20) + "\u2026" : p;
                   return truncated === procDrill || p === procDrill;
@@ -2174,6 +2261,22 @@ function PalantirDashboard() {
             </div>
           </div>
         </div>
+      </div>
+      {/* Global filter bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 28px", background: `${COLORS.card}cc`, borderBottom: `1px solid ${COLORS.border}`, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 700 }}>Filters</span>
+        {[["Year", gYear, setGYear, allYears], ["Sector", gSector, setGSector, allSectors], ["Country", gCountry, setGCountry, allCountries]].map(([label, val, setter, opts]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 9, color: COLORS.textMuted }}>{label}</span>
+            <select value={val} onChange={e => setter(e.target.value)} style={{ background: "#182638", color: val === "All" ? COLORS.textMuted : COLORS.text, border: `1px solid ${val === "All" ? COLORS.border : COLORS.accent}`, borderRadius: 5, padding: "3px 8px", fontSize: 10, cursor: "pointer", outline: "none" }}>
+              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        ))}
+        {(gYear !== "All" || gSector !== "All" || gCountry !== "All") && (
+          <button onClick={() => { setGYear("All"); setGSector("All"); setGCountry("All"); }} style={{ fontSize: 9, color: COLORS.pink, background: "none", border: `1px solid ${COLORS.pink}44`, borderRadius: 4, padding: "3px 8px", cursor: "pointer", letterSpacing: 0.3 }}>&#10005; Clear</button>
+        )}
+        <span style={{ fontSize: 9, color: COLORS.textMuted, marginLeft: "auto" }}>{filteredContracts.length} / {CONTRACTS.length} contracts</span>
       </div>
       <div style={{ padding: "20px 28px 40px" }}>
         {tab === "Overview" && renderOverview()}
