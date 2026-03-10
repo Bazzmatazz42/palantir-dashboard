@@ -7,8 +7,7 @@ venv/
 env/
 *.egg-info/
 
-# Scraper runtime
-scraper/seen_ids.json
+# Scraper runtime (seen_ids.json is tracked so deduplication persists between CI runs)
 
 # OS
 .DS_Store
