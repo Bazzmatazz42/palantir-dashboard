@@ -826,42 +826,54 @@ function PalantirDashboard() {
                 );
               })()
             ) : (
-              /* BLOCK VIEW */
+              /* BLOCK VIEW — flex-grow = count, so each block gets exactly count/total of the canvas */
               (() => {
                 const totalProc = procArr.reduce((s, d) => s + d.value, 0);
                 return (
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
-                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>Block width is proportional to contract count · click any block to drill in · {procArr.length} types</div>
-                    <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", gap: 4, overflowX: "auto", paddingBottom: 4 }}>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>
+                      {totalProc} contracts total · each block's width = its share of all contracts · click to drill in
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", width: "100%", height: 120, gap: 2 }}>
                       {procArr.map((d, i) => {
                         const col = PIE_COLORS[i % PIE_COLORS.length];
-                        const widthPct = Math.max((d.value / totalProc) * 100, 5);
+                        const pct = ((d.value / totalProc) * 100).toFixed(1);
                         return (
-                          <div key={i} onClick={() => setProcDrill(d.name)} style={{
-                            flexShrink: 0,
-                            width: `${widthPct}%`,
-                            minWidth: 52,
-                            height: 110,
-                            padding: "10px 10px",
-                            background: `${col}18`,
-                            border: `1px solid ${col}55`,
-                            borderRadius: 8,
-                            boxSizing: "border-box",
-                            cursor: "pointer",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between",
-                            transition: "background 0.15s, border-color 0.15s",
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = `${col}30`; e.currentTarget.style.borderColor = col; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = `${col}18`; e.currentTarget.style.borderColor = `${col}55`; }}
+                          <div
+                            key={i}
+                            onClick={() => setProcDrill(d.name)}
+                            title={`${d.name || "Unspecified"}: ${d.value} contracts (${pct}%)`}
+                            style={{
+                              flex: `${d.value} 0 0px`,
+                              height: "100%",
+                              padding: "8px 6px",
+                              background: `${col}1a`,
+                              border: `1px solid ${col}55`,
+                              borderRadius: 4,
+                              boxSizing: "border-box",
+                              cursor: "pointer",
+                              overflow: "hidden",
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between",
+                              transition: "background 0.15s, border-color 0.15s",
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = `${col}35`; e.currentTarget.style.borderColor = col; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = `${col}1a`; e.currentTarget.style.borderColor = `${col}55`; }}
                           >
-                            <div style={{ fontSize: 28, fontWeight: 800, color: col, lineHeight: 1 }}>{d.value}</div>
-                            <div style={{ fontSize: 9, color: COLORS.textDim, lineHeight: 1.3, wordBreak: "break-word", overflow: "hidden" }}>{d.name || "Unspecified"}</div>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: col, lineHeight: 1, flexShrink: 0 }}>{d.value}</div>
+                            <div style={{ fontSize: 8, color: COLORS.textDim, lineHeight: 1.25, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{d.name || "Unspecified"}</div>
                           </div>
                         );
                       })}
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 10 }}>
+                      {procArr.map((d, i) => (
+                        <span key={i} style={{ fontSize: 9, color: COLORS.textMuted }}>
+                          <span style={{ color: PIE_COLORS[i % PIE_COLORS.length], fontWeight: 700 }}>{d.value}</span> {d.name || "Unspecified"} ({((d.value / totalProc) * 100).toFixed(0)}%)
+                        </span>
+                      ))}
                     </div>
                   </div>
                 );
