@@ -55,6 +55,7 @@ def write_output(items):
 
 
 def make_item(uid, source, source_type, title, snippet, url, date_str):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return {
         "id": uid,
         "source": source,
@@ -62,7 +63,7 @@ def make_item(uid, source, source_type, title, snippet, url, date_str):
         "title": (title or "")[:160],
         "snippet": (snippet or "")[:400],
         "url": url or "",
-        "date": date_str or "",
+        "date": date_str or today,  # fall back to scrape date — web search has no pub date
         "scraped_at": datetime.now(timezone.utc).isoformat(),
     }
 

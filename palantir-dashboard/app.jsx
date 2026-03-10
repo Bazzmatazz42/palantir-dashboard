@@ -1259,14 +1259,25 @@ function PalantirDashboard() {
                     onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.card; }}
                   >
                     {/* Row 1: type badge (left) + date (right) — both always fully visible */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
-                      <span style={{ background: meta.color + "20", color: meta.color, border: `1px solid ${meta.color}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontWeight: 700, letterSpacing: 0.9, whiteSpace: "nowrap", flexShrink: 0 }}>
-                        {meta.label}
-                      </span>
-                      <span style={{ fontSize: 10, color: COLORS.textMuted, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                        {item.date || "—"}
-                      </span>
-                    </div>
+                    {(() => {
+                      let dateDisplay = "—";
+                      if (item.date) {
+                        try {
+                          const d = new Date(item.date + "T12:00:00Z");
+                          dateDisplay = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                        } catch { dateDisplay = item.date; }
+                      }
+                      return (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                          <span style={{ background: meta.color + "20", color: meta.color, border: `1px solid ${meta.color}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontWeight: 700, letterSpacing: 0.9, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            {meta.label}
+                          </span>
+                          <span style={{ fontSize: 10, color: COLORS.textMuted, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                            {dateDisplay}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Row 2: title — full wrap, no clamp, the primary content */}
                     <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.5, marginBottom: 8 }}>
