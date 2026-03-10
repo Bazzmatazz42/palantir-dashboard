@@ -78,6 +78,18 @@ function PalantirDashboard() {
   const [sourcesSort, setSourcesSort] = useState("type");
   const [sourcesCatFilter, setSourcesCatFilter] = useState("All");
 
+  // ===== DEAL FLOW STATE =====
+  const [procDrill, setProcDrill] = useState(null);
+
+  // ===== RUN RATE STATE =====
+  const [rrSearch, setRrSearch] = useState("");
+  const [rrSort, setRrSort] = useState("av");
+  const [rrSortDir, setRrSortDir] = useState("desc");
+  const [rrSectorFilter, setRrSectorFilter] = useState("All");
+
+  // ===== OVERVIEW CHART MODE =====
+  const [ovCumMode, setOvCumMode] = useState("both"); // "both" | "cumulative" | "annual"
+
   const pendingCount = useMemo(
     () => pendingItems.filter(i => !approved.has(i.id) && !declined.has(i.id)).length,
     [pendingItems, approved, declined]
@@ -232,9 +244,8 @@ function PalantirDashboard() {
     const map = {};
     CONTRACTS.forEach(c => {
       if (!c.year) return;
-      if (!map[c.year]) map[c.year] = { year: c.year, "US Gov": 0, "International": 0, "Commercial": 0 };
+      if (!map[c.year]) map[c.year] = { year: c.year, "US Gov": 0, "International": 0 };
       if (c.country === "United States") map[c.year]["US Gov"] += (c.value || 0);
-      else if (c.region === "North America" || !c.region) map[c.year]["Commercial"] += (c.value || 0);
       else map[c.year]["International"] += (c.value || 0);
     });
     return Object.values(map).sort((a, b) => a.year - b.year);
@@ -353,7 +364,7 @@ function PalantirDashboard() {
               <BarChart data={bySector.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
                   {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Bar>
@@ -391,10 +402,19 @@ function PalantirDashboard() {
 
         {/* Row 2 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {/* Cumulative + annual */}
+          {/* Cumulative + annual — with toggle */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CUMULATIVE vs ANNUAL CONTRACT VALUE</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Cyan = cumulative · Gold dashed = annual awarded</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>CONTRACT VALUE OVER TIME</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["both","Both"],["cumulative","Cumulative"],["annual","Annual"]].map(([v,l]) => (
+                  <button key={v} onClick={() => setOvCumMode(v)} style={{ padding: "3px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${ovCumMode===v ? COLORS.accent : COLORS.border}`, background: ovCumMode===v ? `${COLORS.accent}22` : "transparent", color: ovCumMode===v ? COLORS.accent : COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>
+              {ovCumMode === "both" ? "Cyan = cumulative · Gold dashed = annual awarded" : ovCumMode === "cumulative" ? "Total cumulative contract value (all time)" : "Annual contract value awarded per year"}
+            </div>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={byYear} margin={{ left: 10, right: 20, top: 10 }}>
                 <defs>
@@ -402,31 +422,34 @@ function PalantirDashboard() {
                     <stop offset="5%" stopColor={COLORS.accent} stopOpacity={0.3} />
                     <stop offset="95%" stopColor={COLORS.accent} stopOpacity={0} />
                   </linearGradient>
+                  <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.gold} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={COLORS.gold} stopOpacity={0} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
-                <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />
-                <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="none" strokeWidth={2} strokeDasharray="5 5" name="Annual" />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                {(ovCumMode === "both" || ovCumMode === "cumulative") && <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />}
+                {(ovCumMode === "both" || ovCumMode === "annual") && <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill={ovCumMode === "annual" ? "url(#grad2)" : "none"} strokeWidth={2} strokeDasharray={ovCumMode === "both" ? "5 5" : undefined} name="Annual" />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* US Gov vs International vs Commercial by year */}
+          {/* US Gov vs International by year */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>US GOV vs INTERNATIONAL vs COMMERCIAL ($M)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>US GOV vs INTERNATIONAL ($M)</div>
             <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Annual contract value split by customer type</div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={byYearRegion} margin={{ left: 10, right: 20, top: 10 }} barCategoryGap="20%">
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
                 <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
                 <Bar dataKey="US Gov" stackId="a" fill={COLORS.accent} name="US Gov" />
-                <Bar dataKey="International" stackId="a" fill={COLORS.gold} name="International" />
-                <Bar dataKey="Commercial" stackId="a" fill={COLORS.purple} name="Commercial" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="International" stackId="a" fill={COLORS.gold} name="International" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -440,7 +463,7 @@ function PalantirDashboard() {
             <BarChart data={byEntity} layout="vertical" margin={{ left: 10, right: 70 }}>
               <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
               <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={160} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={COLORS.accentDim} maxBarSize={26} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }} />
             </BarChart>
           </ResponsiveContainer>
@@ -708,7 +731,7 @@ function PalantirDashboard() {
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="value" orientation="right" tick={{ fill: COLORS.gold, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
                 <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
                 <Bar yAxisId="count" dataKey="count" fill={COLORS.accent} radius={[3, 3, 0, 0]} name="# Contracts" maxBarSize={32} opacity={0.85} />
                 <Line yAxisId="value" type="monotone" dataKey="total" stroke={COLORS.gold} strokeWidth={2} dot={{ fill: COLORS.gold, r: 3 }} name="Value ($M)" />
@@ -745,7 +768,7 @@ function PalantirDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} />
                   <YAxis tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} formatter={(v) => [v, "Contracts"]} />
+                  <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v) => [v, "Contracts"]} />
                   <Bar dataKey="count" radius={[3, 3, 0, 0]} name="Contracts" maxBarSize={36}>
                     {valueBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -758,37 +781,99 @@ function PalantirDashboard() {
         {/* Row 2: Procurement type + Product frequency */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>Block area is proportional to contract count · {procArr.length} vehicle types</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignContent: "flex-start" }}>
-              {procArr.map((d, i) => {
-                const col = PIE_COLORS[i % PIE_COLORS.length];
+            {procDrill ? (
+              /* DRILL-DOWN VIEW */
+              (() => {
+                const rawName = procArr.find((d, i) => {
+                  const origName = Object.entries(procurementData).sort((a,b)=>b[1]-a[1])[i]?.[0] || "";
+                  return d.name === procDrill || origName === procDrill;
+                });
+                const drillContracts = CONTRACTS.filter(c => {
+                  const p = (c.procurement || "").trim();
+                  const truncated = p.length > 22 ? p.slice(0, 20) + "\u2026" : p;
+                  return truncated === procDrill || p === procDrill;
+                });
                 return (
-                  <div key={i} style={{
-                    flex: `${d.value * 14} 0 ${Math.max(72, d.value * 14)}px`,
-                    minWidth: 72,
-                    maxWidth: "100%",
-                    padding: "12px 14px",
-                    background: `${col}16`,
-                    border: `1px solid ${col}44`,
-                    borderRadius: 8,
-                    boxSizing: "border-box",
-                  }}>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: col, lineHeight: 1, marginBottom: 6 }}>{d.value}</div>
-                    <div style={{ fontSize: 10, color: COLORS.textDim, lineHeight: 1.35, wordBreak: "break-word" }}>{d.name || "Unspecified"}</div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <button onClick={() => setProcDrill(null)} style={{ background: `${COLORS.accent}18`, color: COLORS.accent, border: `1px solid ${COLORS.accent}44`, borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 0.3 }}>← Back</button>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{procDrill || "Unspecified"}</div>
+                        <div style={{ fontSize: 10, color: COLORS.textMuted }}>{drillContracts.length} contract{drillContracts.length !== 1 ? "s" : ""}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {drillContracts.sort((a,b) => (b.value||0)-(a.value||0)).map(c => (
+                        <div key={c.id} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 14px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>{c.name}</div>
+                              <div style={{ fontSize: 11, color: COLORS.textDim }}>{c.entity} · {c.country} · {c.year}</div>
+                              {c.statusDetail && <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4, lineHeight: 1.4 }}>{c.statusDetail}</div>}
+                            </div>
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.gold }}>{fmt(c.value)}</div>
+                              <StatusBadge status={c.status} />
+                            </div>
+                          </div>
+                          {c.url && <a href={c.url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 8, fontSize: 10, color: COLORS.accent, textDecoration: "none" }}>View Source →</a>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
-              })}
-            </div>
+              })()
+            ) : (
+              /* BLOCK VIEW */
+              (() => {
+                const totalProc = procArr.reduce((s, d) => s + d.value, 0);
+                return (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>Block width is proportional to contract count · click any block to drill in · {procArr.length} types</div>
+                    <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", gap: 4, overflowX: "auto", paddingBottom: 4 }}>
+                      {procArr.map((d, i) => {
+                        const col = PIE_COLORS[i % PIE_COLORS.length];
+                        const widthPct = Math.max((d.value / totalProc) * 100, 5);
+                        return (
+                          <div key={i} onClick={() => setProcDrill(d.name)} style={{
+                            flexShrink: 0,
+                            width: `${widthPct}%`,
+                            minWidth: 52,
+                            height: 110,
+                            padding: "10px 10px",
+                            background: `${col}18`,
+                            border: `1px solid ${col}55`,
+                            borderRadius: 8,
+                            boxSizing: "border-box",
+                            cursor: "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between",
+                            transition: "background 0.15s, border-color 0.15s",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = `${col}30`; e.currentTarget.style.borderColor = col; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = `${col}18`; e.currentTarget.style.borderColor = `${col}55`; }}
+                          >
+                            <div style={{ fontSize: 28, fontWeight: 800, color: col, lineHeight: 1 }}>{d.value}</div>
+                            <div style={{ fontSize: 9, color: COLORS.textDim, lineHeight: 1.3, wordBreak: "break-word", overflow: "hidden" }}>{d.name || "Unspecified"}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
           </div>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PALANTIR PRODUCT FREQUENCY</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Contracts mentioning each product</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Contracts listing each product · contracts with multiple products count toward each · sorted by frequency</div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 40 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [v, "Contracts"]} />
                 <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
               </BarChart>
             </ResponsiveContainer>
@@ -880,7 +965,7 @@ function PalantirDashboard() {
               <BarChart data={topByRunRate} layout="vertical" margin={{ left: 10, right: 60 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={150} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Annual Run Rate"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v.toFixed(1)}M/yr`, "Annual Run Rate"]} />
                 <Bar dataKey="av" fill={COLORS.accent} radius={[0, 4, 4, 0]} maxBarSize={22} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
                   {topByRunRate.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Bar>
@@ -897,7 +982,7 @@ function PalantirDashboard() {
                 layout="vertical" margin={{ left: 10, right: 60 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Run Rate"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v.toFixed(1)}M/yr`, "Run Rate"]} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
                   {[COLORS.accent, COLORS.gold, COLORS.green, COLORS.purple, COLORS.pink, COLORS.red].map((c, i) => <Cell key={i} fill={c} />)}
                 </Bar>
@@ -952,8 +1037,33 @@ function PalantirDashboard() {
         </div>
 
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>CONTRACT-LEVEL ANNUAL RUN RATE ($M)</div>
-          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Each row = one contract. Green = active years.</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 10 }}>CONTRACT-LEVEL ANNUAL RUN RATE ($M)</div>
+          {/* Controls */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+            <input
+              type="text"
+              placeholder="Search contracts or entities…"
+              value={rrSearch}
+              onChange={e => setRrSearch(e.target.value)}
+              style={{ flex: "1 1 180px", minWidth: 150, background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, outline: "none" }}
+            />
+            <select value={rrSectorFilter} onChange={e => setRrSectorFilter(e.target.value)}
+              style={{ background: COLORS.bg, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 11, outline: "none", cursor: "pointer" }}>
+              <option value="All">All Sectors</option>
+              {[...new Set(contractsWithRR.map(c => c.sector))].sort().map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[["av","Run Rate"],["name","Name"],["sy","Start Yr"],["ey","End Yr"]].map(([k,l]) => (
+                <button key={k} onClick={() => { if (rrSort === k) setRrSortDir(d => d === "asc" ? "desc" : "asc"); else { setRrSort(k); setRrSortDir("desc"); } }}
+                  style={{ padding: "5px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${rrSort===k ? COLORS.gold : COLORS.border}`, background: rrSort===k ? `${COLORS.gold}18` : "transparent", color: rrSort===k ? COLORS.gold : COLORS.textMuted, letterSpacing: 0.4, textTransform: "uppercase" }}>
+                  {l}{rrSort===k ? (rrSortDir==="desc" ? " ↓" : " ↑") : ""}
+                </button>
+              ))}
+            </div>
+            {(rrSearch || rrSectorFilter !== "All") && (
+              <button onClick={() => { setRrSearch(""); setRrSectorFilter("All"); }} style={{ padding: "5px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", background: COLORS.border, color: COLORS.textDim, border: "none" }}>RESET</button>
+            )}
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
               <thead>
@@ -966,7 +1076,23 @@ function PalantirDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {contractsWithRR.sort((a, b) => b.av - a.av).map(c => (
+                {contractsWithRR
+                  .filter(c => {
+                    if (rrSectorFilter !== "All" && c.sector !== rrSectorFilter) return false;
+                    if (rrSearch) {
+                      const q = rrSearch.toLowerCase();
+                      if (!c.name.toLowerCase().includes(q) && !c.entity.toLowerCase().includes(q)) return false;
+                    }
+                    return true;
+                  })
+                  .sort((a, b) => {
+                    let av = a[rrSort], bv = b[rrSort];
+                    if (rrSort === "av" || rrSort === "sy" || rrSort === "ey") { av = av||0; bv = bv||0; }
+                    if (av < bv) return rrSortDir === "asc" ? -1 : 1;
+                    if (av > bv) return rrSortDir === "asc" ? 1 : -1;
+                    return 0;
+                  })
+                  .map(c => (
                   <tr key={c.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                     <td style={{ padding: "5px 8px", color: COLORS.text, fontWeight: 500, position: "sticky", left: 0, background: COLORS.card, zIndex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={c.rrNotes}>{c.name}</td>
                     <td style={{ padding: "5px 8px", color: COLORS.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 90 }}>{c.country === "United States" ? c.entity.split("/").pop().trim().slice(0,15) : c.country.slice(0,10)}</td>
@@ -1461,7 +1587,7 @@ function PalantirDashboard() {
             </div>
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" }}>
               {visible.length} result{visible.length !== 1 ? "s" : ""}
-              {ktFilter !== "All" && ` · ${TYPE_META[ktFilter]?.label || ktFilter}`}
+              {ktFilter !== "All" && ` · ${MEDIA_TYPE_META[ktFilter]?.label || ktFilter}`}
               {ktSource !== "All" && ` · ${ktSource}`}
               {ktSearch && ` · "${ktSearch}"`}
             </div>
