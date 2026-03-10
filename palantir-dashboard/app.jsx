@@ -1252,32 +1252,40 @@ function PalantirDashboard() {
               const meta = MEDIA_TYPE_META[item.source_type] || { label: "MEDIA", color: COLORS.textDim };
               return (
                 <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
-                  style={{ textDecoration: "none", display: "block" }}>
+                  style={{ textDecoration: "none", display: "block", height: "100%" }}>
                   <div
-                    style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "13px 15px", height: "100%", transition: "border-color 0.15s, background 0.15s", cursor: "pointer", display: "flex", flexDirection: "column", gap: 7 }}
+                    style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px", height: "100%", boxSizing: "border-box", transition: "border-color 0.15s, background 0.15s", cursor: "pointer", display: "flex", flexDirection: "column", gap: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = meta.color + "77"; e.currentTarget.style.background = meta.color + "09"; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.card; }}
                   >
-                    {/* Badge + date */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ background: meta.color + "20", color: meta.color, border: `1px solid ${meta.color}40`, borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>
+                    {/* Row 1: type badge (left) + date (right) — both always fully visible */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                      <span style={{ background: meta.color + "20", color: meta.color, border: `1px solid ${meta.color}44`, borderRadius: 4, padding: "3px 8px", fontSize: 9, fontWeight: 700, letterSpacing: 0.9, whiteSpace: "nowrap", flexShrink: 0 }}>
                         {meta.label}
                       </span>
-                      {item.date && <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.date}</span>}
+                      <span style={{ fontSize: 10, color: COLORS.textMuted, whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                        {item.date || "—"}
+                      </span>
                     </div>
-                    {/* Title */}
-                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4 }}>
+
+                    {/* Row 2: title — full wrap, no clamp, the primary content */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.5, marginBottom: 8 }}>
                       {item.title || "(no title)"}
                     </div>
-                    {/* Snippet */}
+
+                    {/* Row 3: snippet — 2 lines, secondary context */}
                     {item.snippet && (
-                      <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.5, flex: 1, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.55, flex: 1, marginBottom: 12, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {item.snippet}
                       </div>
                     )}
-                    {/* Source footer */}
-                    <div style={{ fontSize: 10, color: COLORS.textDim, paddingTop: 6, borderTop: `1px solid ${COLORS.border}`, letterSpacing: 0.3 }}>
-                      {item.source}
+
+                    {/* Footer: source — clear, weighted, separated */}
+                    <div style={{ marginTop: "auto", paddingTop: 10, borderTop: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0, opacity: 0.8 }} />
+                      <span style={{ fontSize: 11, color: COLORS.textDim, fontWeight: 600, letterSpacing: 0.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.source}
+                      </span>
                     </div>
                   </div>
                 </a>
