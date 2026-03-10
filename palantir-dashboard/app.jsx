@@ -35,19 +35,20 @@ const Stat = ({ label, value, sub, color }) => (
 const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "PLTR Docs", "Sources", "KarpTube", "Inbox"];
 
 // Slice-and-dice treemap: returns array of {x,y,w,h,...item} in 0-100 coordinate space
+// scaledValue is used for layout; item.value holds the real count
 function computeTreemap(items, x, y, w, h) {
   if (!items.length) return [];
   if (items.length === 1) return [{ ...items[0], x, y, w, h }];
-  const total = items.reduce((s, d) => s + d.value, 0);
+  const total = items.reduce((s, d) => s + d._sv, 0);
   let cum = 0, splitIdx = 1;
   for (let i = 0; i < items.length - 1; i++) {
-    cum += items[i].value;
+    cum += items[i]._sv;
     splitIdx = i + 1;
     if (cum / total >= 0.5) break;
   }
   const first = items.slice(0, splitIdx);
   const second = items.slice(splitIdx);
-  const r = first.reduce((s, d) => s + d.value, 0) / total;
+  const r = first.reduce((s, d) => s + d._sv, 0) / total;
   if (w >= h) {
     return [...computeTreemap(first, x, y, w * r, h), ...computeTreemap(second, x + w * r, y, w * (1 - r), h)];
   } else {
@@ -801,9 +802,8 @@ function PalantirDashboard() {
           </div>
         </div>
 
-        {/* Row 2: Procurement type + Product frequency */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+        {/* Row 2: Procurement type — full width */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             {procDrill ? (
               /* DRILL-DOWN VIEW */
               (() => {
@@ -847,21 +847,22 @@ function PalantirDashboard() {
                 );
               })()
             ) : (
-              /* TREEMAP VIEW — 2D block, area proportional to contract count */
+              /* TREEMAP VIEW — 2D block, area ∝ sqrt-scaled count for readability */
               (() => {
                 const totalProc = procArr.reduce((s, d) => s + d.value, 0);
-                const tmBlocks = computeTreemap(procArr, 0, 0, 100, 100);
+                // Scale values by ^0.65 so smaller blocks get more breathing room
+                const scaled = procArr.map(d => ({ ...d, _sv: Math.pow(d.value, 0.65) }));
+                const tmBlocks = computeTreemap(scaled, 0, 0, 100, 100);
                 return (
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
                     <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 10 }}>
-                      {totalProc} contracts total · block area = share of all contracts · click to drill in
+                      {totalProc} contracts total · click any block to drill in
                     </div>
-                    <div style={{ position: "relative", width: "100%", height: 260 }}>
+                    <div style={{ position: "relative", width: "100%", height: 380 }}>
                       {tmBlocks.map((d, i) => {
                         const col = PIE_COLORS[i % PIE_COLORS.length];
                         const pct = ((d.value / totalProc) * 100).toFixed(1);
-                        const tooSmall = d.w < 12 || d.h < 12;
                         return (
                           <div
                             key={i}
@@ -876,7 +877,7 @@ function PalantirDashboard() {
                               background: `${col}18`,
                               border: `1px solid ${col}55`,
                               borderRadius: 4,
-                              padding: tooSmall ? 4 : 10,
+                              padding: 10,
                               boxSizing: "border-box",
                               cursor: "pointer",
                               overflow: "hidden",
@@ -888,40 +889,33 @@ function PalantirDashboard() {
                             onMouseEnter={e => { e.currentTarget.style.background = `${col}35`; e.currentTarget.style.borderColor = col; }}
                             onMouseLeave={e => { e.currentTarget.style.background = `${col}18`; e.currentTarget.style.borderColor = `${col}55`; }}
                           >
-                            {!tooSmall && (
-                              <>
-                                <div style={{ fontSize: Math.max(11, Math.min(26, d.w * 0.9)), fontWeight: 800, color: col, lineHeight: 1 }}>{d.value}</div>
-                                <div style={{ fontSize: Math.max(8, Math.min(11, d.w * 0.4)), color: COLORS.textDim, lineHeight: 1.2, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{d.name || "Unspecified"}<br/><span style={{ color: COLORS.textMuted, fontSize: 8 }}>{pct}%</span></div>
-                              </>
-                            )}
+                            <div style={{ fontSize: Math.max(12, Math.min(28, d.w * 0.8)), fontWeight: 800, color: col, lineHeight: 1 }}>{d.value}</div>
+                            <div style={{ fontSize: Math.max(9, Math.min(12, d.w * 0.35)), color: COLORS.textDim, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
+                              {d.name || "Unspecified"}
+                              <span style={{ display: "block", color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{pct}%</span>
+                            </div>
                           </div>
                         );
                       })}
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 8 }}>
-                      {procArr.map((d, i) => (
-                        <span key={i} style={{ fontSize: 9, color: COLORS.textMuted }}>
-                          <span style={{ color: PIE_COLORS[i % PIE_COLORS.length], fontWeight: 700 }}>{d.value}</span> {d.name || "Unspecified"} ({((d.value / totalProc) * 100).toFixed(0)}%)
-                        </span>
-                      ))}
                     </div>
                   </div>
                 );
               })()
             )}
-          </div>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PALANTIR PRODUCT FREQUENCY</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Contracts listing each product · contracts with multiple products count toward each · sorted by frequency</div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 40 }}>
-                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [v, "Contracts"]} />
-                <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        </div>
+
+        {/* Row 3: Product frequency */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PALANTIR PRODUCT FREQUENCY</div>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Contracts listing each product · contracts with multiple products count toward each · sorted by frequency</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 40 }}>
+              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [v, "Contracts"]} />
+              <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     );
