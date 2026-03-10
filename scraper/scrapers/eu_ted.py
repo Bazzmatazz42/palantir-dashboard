@@ -4,19 +4,18 @@ from datetime import datetime
 
 
 def scrape():
-    url = "https://ted.europa.eu/api/v2.0/notices/search"
-    params = {
-        "q": "palantir",
-        "scope": "ALL",
-        "fields": "ND,TI,AU,PC,DT,VT,RN",
-        "pageSize": 50,
+    url = "https://api.ted.europa.eu/v3/notices/search"
+    payload = {
+        "query": "palantir",
+        "fields": ["ND", "TI", "AU", "DT", "VT"],
         "page": 1,
-        "reverseOrder": "true",
+        "limit": 50,
     }
 
     try:
-        resp = requests.get(url, params=params, timeout=30,
-                            headers={"Accept": "application/json"})
+        resp = requests.post(url, json=payload, timeout=30,
+                             headers={"Accept": "application/json",
+                                      "Content-Type": "application/json"})
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:

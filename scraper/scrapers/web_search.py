@@ -3,11 +3,15 @@ import time
 from datetime import datetime
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
     DDGS_AVAILABLE = True
 except ImportError:
-    DDGS_AVAILABLE = False
-    print("[web_search] duckduckgo-search not installed")
+    try:
+        from duckduckgo_search import DDGS
+        DDGS_AVAILABLE = True
+    except ImportError:
+        DDGS_AVAILABLE = False
+        print("[web_search] ddgs/duckduckgo-search not installed")
 
 
 def scrape(x_accounts):
