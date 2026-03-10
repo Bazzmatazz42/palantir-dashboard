@@ -755,8 +755,8 @@ function PalantirDashboard() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* Row 1: 3 columns */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16 }}>
+        {/* Row 1: 2 columns */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
           {/* Col 1: Count + Value per year */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — {viewMode === "cumulative" ? "CUMULATIVE" : "COUNT & VALUE PER YEAR"}</div>
@@ -797,72 +797,91 @@ function PalantirDashboard() {
             </div>
           </div>
 
-          {/* Col 3: Contract size distribution */}
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
-            {sizeDrill === null ? (
-              <>
-                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>By contract ceiling value · click a bar to drill down</div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={valueBuckets} layout="vertical" margin={{ left: 4, right: 48, top: 4, bottom: 4 }} barCategoryGap="20%"
-                    onClick={e => { if (e && e.activePayload && e.activePayload[0]) setSizeDrill(e.activePayload[0].payload.name); }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} horizontal={false} />
-                    <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={84} tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
-                      formatter={(v, n, props) => {
-                        const tot = props.payload.total;
-                        return [`${v} contracts · $${tot >= 1000 ? (tot/1000).toFixed(1)+"B" : tot.toFixed(0)+"M"} total`];
-                      }} />
-                    <Bar dataKey="count" radius={[0, 3, 3, 0]} name="Contracts" cursor="pointer"
-                      label={{ position: "right", formatter: (v, entry) => {
-                        const payload = valueBuckets.find(b => b.count === v);
-                        return "";
-                      }, fill: COLORS.textMuted, fontSize: 9 }}>
-                      {valueBuckets.map((b, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
-                  {valueBuckets.map((b, i) => (
-                    <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: COLORS.textMuted }}>
-                      <span style={{ color: PIE_COLORS[i % PIE_COLORS.length], fontWeight: 600 }}>{b.name}</span>
-                      <span>${b.total >= 1000 ? (b.total/1000).toFixed(1)+"B" : b.total.toFixed(0)+"M"} total</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <button onClick={() => setSizeDrill(null)} style={{ background: COLORS.border, border: "none", borderRadius: 6, color: COLORS.text, fontSize: 10, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>← Back</button>
-                  <span style={{ fontSize: 10, color: COLORS.textDim, fontWeight: 600 }}>{sizeDrill}</span>
-                </div>
-                <div style={{ overflowY: "auto", maxHeight: 300, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {(valueBuckets.find(b => b.name === sizeDrill) || { contracts: [] }).contracts
-                    .sort((a, b) => (b.value || 0) - (a.value || 0))
-                    .map((c, i) => (
-                      <div key={i} style={{ background: "#0d1520", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "7px 10px" }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.text, marginBottom: 2 }}>{c.entity}</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontSize: 9, color: COLORS.textMuted }}>
-                          <span style={{ color: COLORS.gold, fontWeight: 700 }}>${c.value != null ? (c.value >= 1000 ? (c.value/1000).toFixed(2)+"B" : c.value.toFixed(0)+"M") : "N/A"}</span>
-                          <span>{c.year}</span>
-                          <span style={{ color: COLORS.textDim }}>{c.sector}</span>
-                          <span>{c.country}</span>
-                          <span style={{ color: c.status === "Active" ? COLORS.green : c.status === "Awarded" ? COLORS.accent : COLORS.textMuted }}>{c.status}</span>
-                        </div>
-                      </div>
-                    ))
-                  }
-                </div>
-              </>
-            )}
-          </div>
         </div>
 
-        {/* Row 2: Procurement type — full width */}
+        {/* Row 2: Contract size distribution — full width */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+          {sizeDrill === null ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 3 }}>By contract ceiling value · click any bar to see constituent contracts</div>
+                </div>
+                {/* Inline legend — color swatches right-aligned inside the card header */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", justifyContent: "flex-end", maxWidth: "60%" }}>
+                  {valueBuckets.map((b, i) => (
+                    <span key={b.name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: COLORS.textMuted, whiteSpace: "nowrap" }}>
+                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                      {b.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={valueBuckets} margin={{ left: 10, right: 20, top: 24, bottom: 30 }} barCategoryGap="18%"
+                  onClick={e => { if (e && e.activePayload && e.activePayload[0]) setSizeDrill(e.activePayload[0].payload.name); }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} tickLine={false} interval={0} angle={-18} textAnchor="end" dy={6} />
+                  <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} label={{ value: "Contracts", angle: -90, position: "insideLeft", fill: COLORS.textMuted, fontSize: 9, dy: 30 }} />
+                  <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                    formatter={(v, n, props) => {
+                      const tot = props.payload.total;
+                      return [`${v} contracts · $${tot >= 1000 ? (tot/1000).toFixed(1)+"B" : tot.toFixed(0)+"M"} total value`, ""];
+                    }} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Contracts" cursor="pointer"
+                    label={{ position: "top", formatter: v => v > 0 ? v : "", fill: COLORS.textDim, fontSize: 10, fontWeight: 700 }}>
+                    {valueBuckets.map((b, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </>
+          ) : (
+            (() => {
+              const bucket = valueBuckets.find(b => b.name === sizeDrill) || { contracts: [], total: 0 };
+              const bIdx = valueBuckets.findIndex(b => b.name === sizeDrill);
+              const bColor = PIE_COLORS[bIdx % PIE_COLORS.length];
+              const drillContracts = [...bucket.contracts].sort((a, b) => (b.value || 0) - (a.value || 0));
+              return (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                    <button onClick={() => setSizeDrill(null)} style={{ background: `${bColor}18`, color: bColor, border: `1px solid ${bColor}44`, borderRadius: 6, padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 0.3 }}>← Back</button>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{sizeDrill}</span>
+                      <span style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: 10 }}>{drillContracts.length} contract{drillContracts.length !== 1 ? "s" : ""} · ${bucket.total >= 1000 ? (bucket.total/1000).toFixed(1)+"B" : bucket.total.toFixed(0)+"M"} total value</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+                    {drillContracts.map((c, i) => {
+                      const statusColor = c.status === "Active" ? COLORS.green : c.status === "Completed" ? COLORS.textMuted : c.status === "Under Review" ? COLORS.gold : COLORS.accent;
+                      return (
+                        <div key={i} style={{ background: `${bColor}08`, border: `1px solid ${bColor}30`, borderRadius: 8, padding: 14 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, lineHeight: 1.3, flex: 1, marginRight: 8 }}>{c.entity}</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: bColor, whiteSpace: "nowrap" }}>${c.value != null ? (c.value >= 1000 ? (c.value/1000).toFixed(2)+"B" : c.value.toFixed(0)+"M") : "N/A"}</div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px", fontSize: 9 }}>
+                            {[["Year", c.year], ["Status", c.status], ["Sector", c.sector], ["Country", c.country], ["Product", c.product], ["Procurement", c.procurement]].map(([label, val]) => (
+                              <div key={label}>
+                                <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{label} </span>
+                                <span style={{ color: label === "Status" ? statusColor : COLORS.textDim }}>{val || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {c.description && <div style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 8, lineHeight: 1.4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>{c.description}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
+
+        {/* Row 4: Procurement type — full width */}
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             {procDrill ? (
               /* DRILL-DOWN VIEW */
