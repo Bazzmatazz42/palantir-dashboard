@@ -139,6 +139,28 @@ function PalantirDashboard() {
     setExportModal(true);
   }, [pendingItems, approved]);
 
+  // ===== SHARED MEDIA TYPE TAXONOMY =====
+  // Single source of truth — used by KarpTube AND Inbox so colors never diverge.
+  // Groups: official data (green) | legal docs (gold) | current comms (cyan) |
+  //         raw feeds (accentDim) | analysis (purple) | broadcast (pink) |
+  //         social/reactive (red) | generic web (textDim)
+  const MEDIA_TYPE_META = {
+    contract_api:  { label: "CONTRACT",      color: COLORS.green },
+    official:      { label: "OFFICIAL",      color: COLORS.green },
+    sec_filing:    { label: "SEC FILING",    color: COLORS.gold },
+    press_release: { label: "PRESS RELEASE", color: COLORS.accent },
+    news:          { label: "NEWS",          color: COLORS.accent },
+    article:       { label: "ARTICLE",       color: COLORS.accent },
+    rss:           { label: "RSS FEED",      color: COLORS.accentDim },
+    newsletter:    { label: "NEWSLETTER",    color: COLORS.purple },
+    blog:          { label: "BLOG",          color: COLORS.purple },
+    podcast:       { label: "PODCAST",       color: COLORS.pink },
+    video:         { label: "VIDEO",         color: COLORS.pink },
+    x_post:        { label: "X / SOCIAL",   color: COLORS.red },
+    x_search:      { label: "X / SOCIAL",   color: COLORS.red },
+    web_search:    { label: "WEB",           color: COLORS.textDim },
+  };
+
   const years = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.year).filter(Boolean).sort((a, b) => b - a).map(String))], []);
   const countries = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.country).sort())], []);
   const sectors = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.sector).sort())], []);
@@ -1118,27 +1140,7 @@ function PalantirDashboard() {
   };
 
   const renderKarpTube = () => {
-    // Canonical color map — consistent with Inbox SOURCE_TYPE_COLORS
-    // contract_api/official → green, sec_filing → gold, press_release/news/article → accent,
-    // rss/blog/newsletter → purple, x_search/x_post/video → pink, web_search → textDim, podcast → gold
-    const TYPE_META = {
-      contract_api:  { label: "CONTRACT",      color: COLORS.green },
-      official:      { label: "OFFICIAL",      color: COLORS.green },
-      sec_filing:    { label: "SEC FILING",    color: COLORS.gold },
-      press_release: { label: "PRESS RELEASE", color: COLORS.accent },
-      news:          { label: "NEWS",          color: COLORS.accent },
-      article:       { label: "ARTICLE",       color: COLORS.accent },
-      podcast:       { label: "PODCAST",       color: COLORS.gold },
-      rss:           { label: "RSS",           color: COLORS.purple },
-      blog:          { label: "BLOG",          color: COLORS.purple },
-      newsletter:    { label: "NEWSLETTER",    color: COLORS.purple },
-      video:         { label: "VIDEO",         color: COLORS.red },
-      x_post:        { label: "X / SOCIAL",   color: COLORS.pink },
-      x_search:      { label: "X / SOCIAL",   color: COLORS.pink },
-      web_search:    { label: "WEB",           color: COLORS.textDim },
-    };
-
-    const TYPE_ORDER = ["All", "news", "article", "newsletter", "blog", "rss", "podcast", "video", "x_search", "x_post", "web_search", "press_release", "sec_filing", "contract_api", "official"];
+    const TYPE_ORDER = ["All", "news", "article", "press_release", "rss", "newsletter", "blog", "podcast", "video", "x_search", "x_post", "web_search", "sec_filing", "contract_api", "official"];
 
     const activeTypes = new Set(karpItems.map(i => i.source_type).filter(Boolean));
     const availableFilters = ["All", ...TYPE_ORDER.slice(1).filter(f => activeTypes.has(f))];
@@ -1194,7 +1196,7 @@ function PalantirDashboard() {
           {/* Type chips */}
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
             {availableFilters.map(f => {
-              const meta = TYPE_META[f] || {};
+              const meta = MEDIA_TYPE_META[f] || {};
               const active = ktFilter === f;
               const col = meta.color || COLORS.accent;
               const count = f === "All" ? karpItems.length : karpItems.filter(i => i.source_type === f).length;
@@ -1206,7 +1208,7 @@ function PalantirDashboard() {
                   borderRadius: 20, padding: "4px 12px", fontSize: 10, fontWeight: 700,
                   cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s",
                 }}>
-                  {f === "All" ? "All" : (TYPE_META[f]?.label || f)} <span style={{ opacity: 0.65 }}>({count})</span>
+                  {f === "All" ? "All" : (MEDIA_TYPE_META[f]?.label || f)} <span style={{ opacity: 0.65 }}>({count})</span>
                 </button>
               );
             })}
@@ -1247,7 +1249,7 @@ function PalantirDashboard() {
         {visible.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
             {visible.map(item => {
-              const meta = TYPE_META[item.source_type] || { label: "MEDIA", color: COLORS.textDim };
+              const meta = MEDIA_TYPE_META[item.source_type] || { label: "MEDIA", color: COLORS.textDim };
               return (
                 <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
                   style={{ textDecoration: "none", display: "block" }}>
@@ -1289,22 +1291,6 @@ function PalantirDashboard() {
 
   // ===== INBOX TAB =====
   const renderInbox = () => {
-    const SOURCE_TYPE_LABELS = {
-      contract_api: "CONTRACT API",
-      sec_filing: "SEC FILING",
-      press_release: "PRESS RELEASE",
-      rss: "RSS / NEWSLETTER",
-      x_search: "X / SOCIAL",
-      web_search: "WEB",
-    };
-    const SOURCE_TYPE_COLORS = {
-      contract_api: COLORS.green,
-      sec_filing: COLORS.gold,
-      press_release: COLORS.accent,
-      rss: COLORS.purple,
-      x_search: COLORS.pink,
-      web_search: COLORS.textDim,
-    };
 
     const sourceTypes = ["All", ...new Set(pendingItems.map(i => i.source_type).filter(Boolean))];
 
@@ -1343,7 +1329,7 @@ function PalantirDashboard() {
             <label style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>Source</label>
             <select value={inboxSourceFilter} onChange={e => setInboxSourceFilter(e.target.value)}
               style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 12, outline: "none", cursor: "pointer" }}>
-              {sourceTypes.map(t => <option key={t} value={t}>{t === "All" ? "All Sources" : (SOURCE_TYPE_LABELS[t] || t)}</option>)}
+              {sourceTypes.map(t => <option key={t} value={t}>{t === "All" ? "All Sources" : (MEDIA_TYPE_META[t]?.label || t)}</option>)}
             </select>
             {(() => {
               const hasExportable = pendingItems.some(i => approved.has(i.id) && i.source_type === "contract_api" && i.contract_data);
@@ -1383,8 +1369,9 @@ function PalantirDashboard() {
           {visibleItems.map(item => {
             const isApproved = approved.has(item.id);
             const isDeclined = declined.has(item.id);
-            const sc = SOURCE_TYPE_COLORS[item.source_type] || COLORS.textMuted;
-            const typeLabel = SOURCE_TYPE_LABELS[item.source_type] || item.source_type;
+            const _typeMeta = MEDIA_TYPE_META[item.source_type] || { label: item.source_type, color: COLORS.textMuted };
+            const sc = _typeMeta.color;
+            const typeLabel = _typeMeta.label;
 
             return (
               <div key={item.id} style={{
