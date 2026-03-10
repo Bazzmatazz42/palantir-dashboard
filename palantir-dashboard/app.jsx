@@ -55,6 +55,8 @@ function PalantirDashboard() {
   const karpItems = useMemo(() => window.KARPTUBE_ITEMS || [], []);
   const [ktSearch, setKtSearch] = useState("");
   const [ktFilter, setKtFilter] = useState("All");
+  const [ktSource, setKtSource] = useState("All");
+  const [ktSort, setKtSort] = useState("date_desc");
 
   // ===== INBOX STATE =====
   const pendingItems = useMemo(() => window.PENDING_ITEMS || [], []);
@@ -1116,131 +1118,163 @@ function PalantirDashboard() {
   };
 
   const renderKarpTube = () => {
+    // Canonical color map — consistent with Inbox SOURCE_TYPE_COLORS
+    // contract_api/official → green, sec_filing → gold, press_release/news/article → accent,
+    // rss/blog/newsletter → purple, x_search/x_post/video → pink, web_search → textDim, podcast → gold
     const TYPE_META = {
+      contract_api:  { label: "CONTRACT",      color: COLORS.green },
+      official:      { label: "OFFICIAL",      color: COLORS.green },
+      sec_filing:    { label: "SEC FILING",    color: COLORS.gold },
+      press_release: { label: "PRESS RELEASE", color: COLORS.accent },
+      news:          { label: "NEWS",          color: COLORS.accent },
       article:       { label: "ARTICLE",       color: COLORS.accent },
-      news:          { label: "NEWS",           color: COLORS.accent },
-      blog:          { label: "BLOG",           color: COLORS.purple },
-      newsletter:    { label: "NEWSLETTER",     color: COLORS.purple },
-      podcast:       { label: "PODCAST",        color: COLORS.gold },
-      video:         { label: "VIDEO",          color: COLORS.pink },
-      x_post:        { label: "X / SOCIAL",     color: COLORS.pink },
-      x_search:      { label: "X / SOCIAL",     color: COLORS.pink },
-      web_search:    { label: "WEB",            color: COLORS.textDim },
-      rss:           { label: "RSS",            color: COLORS.purple },
-      sec_filing:    { label: "SEC FILING",     color: COLORS.gold },
-      press_release: { label: "PRESS RELEASE",  color: COLORS.accent },
-      official:      { label: "OFFICIAL",       color: COLORS.green },
+      podcast:       { label: "PODCAST",       color: COLORS.gold },
+      rss:           { label: "RSS",           color: COLORS.purple },
+      blog:          { label: "BLOG",          color: COLORS.purple },
+      newsletter:    { label: "NEWSLETTER",    color: COLORS.purple },
+      video:         { label: "VIDEO",         color: COLORS.red },
+      x_post:        { label: "X / SOCIAL",   color: COLORS.pink },
+      x_search:      { label: "X / SOCIAL",   color: COLORS.pink },
+      web_search:    { label: "WEB",           color: COLORS.textDim },
     };
 
-    const FILTERS = ["All", "article", "news", "blog", "newsletter", "podcast", "video", "x_post", "x_search", "web_search", "rss", "sec_filing", "press_release"];
+    const TYPE_ORDER = ["All", "news", "article", "newsletter", "blog", "rss", "podcast", "video", "x_search", "x_post", "web_search", "press_release", "sec_filing", "contract_api", "official"];
 
     const activeTypes = new Set(karpItems.map(i => i.source_type).filter(Boolean));
-    const availableFilters = ["All", ...FILTERS.slice(1).filter(f => activeTypes.has(f))];
+    const availableFilters = ["All", ...TYPE_ORDER.slice(1).filter(f => activeTypes.has(f))];
+    const sources = ["All", ...Array.from(new Set(karpItems.map(i => i.source).filter(Boolean))).sort()];
+
+    const SORT_OPTIONS = [
+      { value: "date_desc", label: "Newest first" },
+      { value: "date_asc",  label: "Oldest first" },
+      { value: "source",    label: "Source A–Z" },
+    ];
 
     const q = ktSearch.toLowerCase();
-    const visible = karpItems.filter(item => {
+    let visible = karpItems.filter(item => {
       if (ktFilter !== "All" && item.source_type !== ktFilter) return false;
-      if (q && !((item.title || "").toLowerCase().includes(q)) && !((item.snippet || "").toLowerCase().includes(q)) && !((item.source || "").toLowerCase().includes(q))) return false;
+      if (ktSource !== "All" && item.source !== ktSource) return false;
+      if (q && !((item.title || "").toLowerCase().includes(q)) &&
+               !((item.snippet || "").toLowerCase().includes(q)) &&
+               !((item.source || "").toLowerCase().includes(q))) return false;
       return true;
     });
 
+    // Sort
+    visible = [...visible].sort((a, b) => {
+      if (ktSort === "date_asc")  return (a.date || a.scraped_at || "").localeCompare(b.date || b.scraped_at || "");
+      if (ktSort === "source")    return (a.source || "").localeCompare(b.source || "");
+      // date_desc (default)
+      return (b.date || b.scraped_at || "").localeCompare(a.date || a.scraped_at || "");
+    });
+
+    const selectStyle = { background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 12, outline: "none", cursor: "pointer" };
+
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Header */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Header row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.accent, letterSpacing: 0.5 }}>KarpTube</div>
-            <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 3 }}>
-              All Palantir media · {karpItems.length} items · news, articles, podcasts, videos, newsletters, blogs, social
+            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.accent, letterSpacing: 0.5 }}>KarpTube</div>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>
+              {karpItems.length} items · news, articles, podcasts, videos, newsletters, blogs, social
             </div>
           </div>
           <input
             placeholder="Search KarpTube..."
             value={ktSearch}
             onChange={e => setKtSearch(e.target.value)}
-            style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 13, width: 260, outline: "none" }}
+            style={{ ...selectStyle, borderRadius: 8, padding: "7px 14px", fontSize: 12, width: 240 }}
           />
         </div>
 
-        {/* Filter chips */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {availableFilters.map(f => {
-            const meta = TYPE_META[f] || {};
-            const active = ktFilter === f;
-            return (
-              <button key={f} onClick={() => setKtFilter(f)} style={{
-                background: active ? (meta.color || COLORS.accent) + "22" : COLORS.card,
-                color: active ? (meta.color || COLORS.accent) : COLORS.textMuted,
-                border: `1px solid ${active ? (meta.color || COLORS.accent) + "66" : COLORS.border}`,
-                borderRadius: 20, padding: "5px 14px", fontSize: 11, fontWeight: 700,
-                cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s",
-              }}>
-                {f === "All" ? `All (${karpItems.length})` : (TYPE_META[f]?.label || f)}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Results count */}
-        {(ktSearch || ktFilter !== "All") && (
-          <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-            {visible.length} result{visible.length !== 1 ? "s" : ""}
-            {ktFilter !== "All" && ` · ${TYPE_META[ktFilter]?.label || ktFilter}`}
-            {ktSearch && ` · "${ktSearch}"`}
+        {/* Controls row: type chips + source + sort */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Type chips */}
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            {availableFilters.map(f => {
+              const meta = TYPE_META[f] || {};
+              const active = ktFilter === f;
+              const col = meta.color || COLORS.accent;
+              const count = f === "All" ? karpItems.length : karpItems.filter(i => i.source_type === f).length;
+              return (
+                <button key={f} onClick={() => setKtFilter(f)} style={{
+                  background: active ? col + "22" : COLORS.card,
+                  color: active ? col : COLORS.textMuted,
+                  border: `1px solid ${active ? col + "66" : COLORS.border}`,
+                  borderRadius: 20, padding: "4px 12px", fontSize: 10, fontWeight: 700,
+                  cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s",
+                }}>
+                  {f === "All" ? "All" : (TYPE_META[f]?.label || f)} <span style={{ opacity: 0.65 }}>({count})</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+
+          {/* Source filter + sort */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>Source</label>
+              <select value={ktSource} onChange={e => setKtSource(e.target.value)} style={selectStyle}>
+                {sources.map(s => <option key={s} value={s}>{s === "All" ? "All Sources" : s}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>Sort</label>
+              <select value={ktSort} onChange={e => setKtSort(e.target.value)} style={selectStyle}>
+                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" }}>
+              {visible.length} result{visible.length !== 1 ? "s" : ""}
+              {ktFilter !== "All" && ` · ${TYPE_META[ktFilter]?.label || ktFilter}`}
+              {ktSource !== "All" && ` · ${ktSource}`}
+              {ktSearch && ` · "${ktSearch}"`}
+            </div>
+          </div>
+        </div>
 
         {/* Empty state */}
         {karpItems.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 0", color: COLORS.textMuted }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No content yet</div>
-            <div style={{ fontSize: 13 }}>The KarpTube scraper will populate this feed daily.</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No content yet</div>
+            <div style={{ fontSize: 12 }}>The KarpTube scraper will populate this feed daily.</div>
           </div>
         )}
 
         {/* Card grid */}
         {visible.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
             {visible.map(item => {
-              const meta = TYPE_META[item.source_type] || { label: item.source_type?.toUpperCase() || "MEDIA", color: COLORS.textDim };
+              const meta = TYPE_META[item.source_type] || { label: "MEDIA", color: COLORS.textDim };
               return (
                 <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
                   style={{ textDecoration: "none", display: "block" }}>
-                  <div style={{
-                    background: COLORS.card, border: `1px solid ${COLORS.border}`,
-                    borderRadius: 10, padding: "14px 16px", height: "100%",
-                    transition: "border-color 0.15s, background 0.15s",
-                    cursor: "pointer", display: "flex", flexDirection: "column", gap: 8,
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = meta.color + "88"; e.currentTarget.style.background = meta.color + "0a"; }}
+                  <div
+                    style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "13px 15px", height: "100%", transition: "border-color 0.15s, background 0.15s", cursor: "pointer", display: "flex", flexDirection: "column", gap: 7 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = meta.color + "77"; e.currentTarget.style.background = meta.color + "09"; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.card; }}
                   >
-                    {/* Top row: badge + date */}
+                    {/* Badge + date */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{
-                        background: meta.color + "22", color: meta.color,
-                        border: `1px solid ${meta.color}44`,
-                        borderRadius: 4, padding: "2px 8px", fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
-                      }}>{meta.label}</span>
+                      <span style={{ background: meta.color + "20", color: meta.color, border: `1px solid ${meta.color}40`, borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 700, letterSpacing: 0.8 }}>
+                        {meta.label}
+                      </span>
                       {item.date && <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.date}</span>}
                     </div>
-
                     {/* Title */}
                     <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4 }}>
                       {item.title || "(no title)"}
                     </div>
-
                     {/* Snippet */}
                     {item.snippet && (
-                      <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.5, flex: 1,
-                        display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.5, flex: 1, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {item.snippet}
                       </div>
                     )}
-
-                    {/* Source */}
-                    <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: "auto", paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, letterSpacing: 0.3 }}>
+                    {/* Source footer */}
+                    <div style={{ fontSize: 10, color: COLORS.textDim, paddingTop: 6, borderTop: `1px solid ${COLORS.border}`, letterSpacing: 0.3 }}>
                       {item.source}
                     </div>
                   </div>
