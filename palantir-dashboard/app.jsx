@@ -56,6 +56,44 @@ function computeTreemap(items, x, y, w, h) {
   }
 }
 
+// Notable Palantir events for timeline reference lines
+const PALANTIR_EVENTS = [
+  { year: 2020, label: "IPO (Sep 2020)", color: "#f59e0b" },
+  { year: 2021, label: "S&P 500 attempt", color: "#94a3b8" },
+  { year: 2022, label: "Ukraine war contracts", color: "#ef4444" },
+  { year: 2023, label: "AIP launch", color: "#06b6d4" },
+  { year: 2024, label: "S&P 500 inclusion", color: "#10b981" },
+  { year: 2025, label: "DOGE / gov expansion", color: "#f59e0b" },
+];
+
+// Shared rich USD formatter
+function fmtUSD(v) {
+  if (v == null) return "N/A";
+  if (v >= 1000) return `$${(v / 1000).toFixed(2)}B`;
+  if (v >= 1) return `$${v.toFixed(0)}M`;
+  return `$${(v * 1000).toFixed(0)}K`;
+}
+
+// Universal contract detail card (used in drill-downs everywhere)
+const ContractCard = ({ c, color, onClick }) => {
+  const col = color || COLORS.accent;
+  const statusColor = { Active: COLORS.green, Completed: COLORS.textMuted, "Under Review": COLORS.gold }[c.status] || COLORS.accent;
+  return (
+    <div onClick={onClick} style={{ background: `${col}08`, border: `1px solid ${col}30`, borderRadius: 8, padding: 14, cursor: onClick ? "pointer" : "default" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, lineHeight: 1.3, flex: 1, marginRight: 8 }}>{c.entity}</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: col, whiteSpace: "nowrap" }}>{fmtUSD(c.value)}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px", fontSize: 9, marginBottom: c.description ? 8 : 0 }}>
+        {[["Year", c.year, null], ["Status", c.status, statusColor], ["Sector", c.sector, null], ["Country", c.country, null], ["Product", c.product, null], ["Procurement", c.procurement, null], ["Quarter", c.quarter, null], ["Source", c.source, null]].map(([label, val, fc]) => val ? (
+          <div key={label}><span style={{ color: COLORS.textMuted, fontWeight: 600 }}>{label} </span><span style={{ color: fc || COLORS.textDim }}>{val}</span></div>
+        ) : null)}
+      </div>
+      {c.description && <div style={{ fontSize: 9, color: COLORS.textMuted, lineHeight: 1.4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>{c.description}</div>}
+    </div>
+  );
+};
+
 function PalantirDashboard() {
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
@@ -103,6 +141,12 @@ function PalantirDashboard() {
   // ===== DEAL FLOW STATE =====
   const [procDrill, setProcDrill] = useState(null);
   const [sizeDrill, setSizeDrill] = useState(null);
+
+  // ===== DRILL-DOWN STATES =====
+  const [sectorDrill, setSectorDrill] = useState(null);
+  const [countryDrillOv, setCountryDrillOv] = useState(null);
+  const [yearDrill, setYearDrill] = useState(null);
+  const [modalContract, setModalContract] = useState(null);
 
   // ===== RUN RATE STATE =====
   const [rrSearch, setRrSearch] = useState("");
@@ -293,6 +337,20 @@ function PalantirDashboard() {
     return arr;
   }, [filteredContracts]);
 
+  // Year-over-year deltas for time series
+  const yoyDeltas = useMemo(() => {
+    const map = {};
+    byYear.forEach((d, i) => {
+      if (i === 0) { map[d.year] = { countDelta: null, valueDelta: null }; return; }
+      const prev = byYear[i - 1];
+      map[d.year] = {
+        countDelta: prev.count > 0 ? Math.round(((d.count - prev.count) / prev.count) * 100) : null,
+        valueDelta: prev.total > 0 ? Math.round(((d.total - prev.total) / prev.total) * 100) : null,
+      };
+    });
+    return map;
+  }, [byYear]);
+
   // US Gov vs International by year (stacked bar — Overview)
   const byYearRegion = useMemo(() => {
     const map = {};
@@ -426,49 +484,107 @@ function PalantirDashboard() {
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>VALUE BY SECTOR</div>
-              <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
-                {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setSectorSort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: sectorSort === v ? COLORS.accent : "transparent", color: sectorSort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
-                ))}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {sectorDrill && (
+                  <button onClick={() => setSectorDrill(null)} style={{ background: `${COLORS.accent}18`, color: COLORS.accent, border: `1px solid ${COLORS.accent}44`, borderRadius: 5, padding: "3px 10px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>← All</button>
+                )}
+                <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
+                  {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setSectorSort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: sectorSort === v ? COLORS.accent : "transparent", color: sectorSort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.filter(d => d.value > 0).length} sectors · {bySector.filter(d => d.value === 0).length} undisclosed</div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={bySector.filter(d => sectorSort === "count" ? d.count > 0 : d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}>
-                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={sectorSort === "count" ? v => v : v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
-                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v) => sectorSort === "count" ? [`${v} contracts`, "Count"] : [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-                <Bar dataKey={sectorSort} radius={[0, 4, 4, 0]} maxBarSize={24} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => sectorSort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
-                  {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {sectorDrill ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 10 }}>{sectorDrill}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 8, maxHeight: 460, overflowY: "auto" }}>
+                  {filteredContracts.filter(c => c.sector === sectorDrill).sort((a, b) => (b.value || 0) - (a.value || 0)).map((c, i) => (
+                    <ContractCard key={i} c={c} color={PIE_COLORS[0]} onClick={() => setModalContract(c)} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.filter(d => d.value > 0).length} sectors · click bar to drill in</div>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={bySector.filter(d => sectorSort === "count" ? d.count > 0 : d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}
+                    onClick={e => { if (e && e.activePayload && e.activePayload[0]) setSectorDrill(e.activePayload[0].payload.name); }}>
+                    <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={sectorSort === "count" ? v => v : v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                    <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={TT_STYLE} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                            <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 5 }}>{d.name}</div>
+                            <div style={{ color: COLORS.gold }}>Value: <strong>{fmtUSD(d.value)}</strong></div>
+                            <div style={{ color: COLORS.accent, marginTop: 3 }}>Contracts: <strong>{d.count}</strong></div>
+                            <div style={{ color: COLORS.textMuted, marginTop: 4, fontSize: 9 }}>Click to drill in</div>
+                          </div>
+                        );
+                      }} />
+                    <Bar dataKey={sectorSort} radius={[0, 4, 4, 0]} maxBarSize={24} cursor="pointer" label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => sectorSort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                      {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
 
           {/* Top countries */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>BY COUNTRY</div>
-              <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
-                {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setCountrySort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: countrySort === v ? COLORS.gold : "transparent", color: countrySort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
-                ))}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {countryDrillOv && (
+                  <button onClick={() => setCountryDrillOv(null)} style={{ background: `${COLORS.gold}18`, color: COLORS.gold, border: `1px solid ${COLORS.gold}44`, borderRadius: 5, padding: "3px 10px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>← All</button>
+                )}
+                <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 5, padding: 2, gap: 2 }}>
+                  {[["value","$ Value"],["count","Count"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setCountrySort(v)} style={{ padding: "3px 9px", fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: "pointer", border: "none", background: countrySort === v ? COLORS.gold : "transparent", color: countrySort === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                  ))}
+                </div>
               </div>
             </div>
-            {(() => {
+            {countryDrillOv ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.gold, marginBottom: 10 }}>{countryDrillOv}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 8, maxHeight: 460, overflowY: "auto" }}>
+                  {filteredContracts.filter(c => c.country === countryDrillOv).sort((a, b) => (b.value || 0) - (a.value || 0)).map((c, i) => (
+                    <ContractCard key={i} c={c} color={PIE_COLORS[i % PIE_COLORS.length]} onClick={() => setModalContract(c)} />
+                  ))}
+                </div>
+              </div>
+            ) : (() => {
               const disclosedCountries = countrySort === "count" ? byCountry.filter(d => d.count > 0).slice(0, 15) : topCountries.filter(d => d.value > 0);
               const undisclosedCount = byCountry.filter(d => d.value === 0).length;
               return (
                 <>
                   <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>
-                    {disclosedCountries.length} with disclosed value{undisclosedCount > 0 && ` · ${undisclosedCount} undisclosed`}
+                    {disclosedCountries.length} with disclosed value{undisclosedCount > 0 && ` · ${undisclosedCount} undisclosed`} · click bar to drill in
                   </div>
                   <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={disclosedCountries} layout="vertical" margin={{ left: 10, right: 56 }}>
+                    <BarChart data={disclosedCountries} layout="vertical" margin={{ left: 10, right: 56 }}
+                      onClick={e => { if (e && e.activePayload && e.activePayload[0]) setCountryDrillOv(e.activePayload[0].payload.name); }}>
                       <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={countrySort === "count" ? v => v : v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
                       <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => countrySort === "count" ? [`${v} contracts`, "Count"] : [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-                      <Bar dataKey={countrySort} radius={[0, 4, 4, 0]} maxBarSize={14} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => countrySort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                      <Tooltip contentStyle={TT_STYLE} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0].payload;
+                          return (
+                            <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                              <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 5 }}>{d.name}</div>
+                              <div style={{ color: COLORS.gold }}>Value: <strong>{fmtUSD(d.value)}</strong></div>
+                              <div style={{ color: COLORS.accent, marginTop: 3 }}>Contracts: <strong>{d.count}</strong></div>
+                              <div style={{ color: COLORS.textMuted, marginTop: 4, fontSize: 9 }}>Click to drill in</div>
+                            </div>
+                          );
+                        }} />
+                      <Bar dataKey={countrySort} radius={[0, 4, 4, 0]} maxBarSize={14} cursor="pointer" label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => countrySort === "count" ? v : v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
                         {disclosedCountries.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Bar>
                     </BarChart>
@@ -516,7 +632,34 @@ function PalantirDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const yoy = yoyDeltas[label];
+                  return (
+                    <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                      <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+                      {payload.map((p, i) => (
+                        <div key={i} style={{ color: p.color, marginBottom: 3 }}>{p.name}: <strong>{fmtUSD(p.value)}</strong></div>
+                      ))}
+                      {yoy && yoy.valueDelta != null && (
+                        <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 6, fontSize: 10 }}>
+                          <span style={{ color: yoy.valueDelta >= 0 ? COLORS.green : COLORS.pink }}>
+                            {yoy.valueDelta >= 0 ? "▲" : "▼"} {Math.abs(yoy.valueDelta)}% vs prev year
+                          </span>
+                          {yoy.countDelta != null && (
+                            <span style={{ color: COLORS.textMuted, marginLeft: 10 }}>
+                              {yoy.countDelta >= 0 ? "+" : ""}{yoy.countDelta}% contracts
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }} />
+                {PALANTIR_EVENTS.map(ev => (
+                  <ReferenceLine key={ev.year} x={ev.year} stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
+                    label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 7, angle: -45, dy: -4 }} />
+                ))}
                 {viewMode === "cumulative"
                   ? <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative Value" />
                   : <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="url(#grad2)" strokeWidth={2} name="Annual Value" />
@@ -534,8 +677,27 @@ function PalantirDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Tooltip contentStyle={TT_STYLE} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const usGov = payload.find(p => p.dataKey === "US Gov")?.value || 0;
+                    const intl = payload.find(p => p.dataKey === "International")?.value || 0;
+                    const total = usGov + intl;
+                    return (
+                      <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                        <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+                        <div style={{ color: COLORS.accent }}>US Gov: <strong>{fmtUSD(usGov)}</strong>{total > 0 && <span style={{ color: COLORS.textMuted }}> ({((usGov/total)*100).toFixed(0)}%)</span>}</div>
+                        <div style={{ color: COLORS.gold, marginTop: 3 }}>International: <strong>{fmtUSD(intl)}</strong>{total > 0 && <span style={{ color: COLORS.textMuted }}> ({((intl/total)*100).toFixed(0)}%)</span>}</div>
+                        <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 6, color: COLORS.textDim, fontSize: 10 }}>Total: <strong>{fmtUSD(total)}</strong></div>
+                      </div>
+                    );
+                  }} />
                 <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
+                {(() => {
+                  const regionData = viewMode === "cumulative" ? byYearRegionCumul : byYearRegion;
+                  const avg = regionData.length > 0 ? regionData.reduce((s, d) => s + d["US Gov"] + d["International"], 0) / regionData.length : 0;
+                  return <ReferenceLine y={avg} stroke={COLORS.textMuted} strokeDasharray="5 3" label={{ value: "Avg/yr", position: "insideTopRight", fill: COLORS.textMuted, fontSize: 9 }} />;
+                })()}
                 <Bar dataKey="US Gov" stackId="a" fill={COLORS.accent} name="US Gov" />
                 <Bar dataKey="International" stackId="a" fill={COLORS.gold} name="International" radius={[2, 2, 0, 0]} />
               </BarChart>
@@ -804,20 +966,71 @@ function PalantirDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
           {/* Col 1: Count + Value per year */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — {viewMode === "cumulative" ? "CUMULATIVE" : "COUNT & VALUE PER YEAR"}</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{viewMode === "cumulative" ? "Running total of contract count and value over time" : "Bars = contract count (left axis) · Line = total value $M (right axis)"}</div>
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={dealFlowData} margin={{ left: 0, right: 20, top: 10 }} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
-                <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="value" orientation="right" tick={{ fill: COLORS.gold, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
-                <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
-                <Bar yAxisId="count" dataKey="count" fill={COLORS.accent} radius={[3, 3, 0, 0]} name="# Contracts" maxBarSize={32} opacity={0.85} />
-                <Line yAxisId="value" type="monotone" dataKey="total" stroke={COLORS.gold} strokeWidth={2} dot={{ fill: COLORS.gold, r: 3 }} name="Value ($M)" />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {yearDrill ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                  <button onClick={() => setYearDrill(null)} style={{ background: `${COLORS.accent}18`, color: COLORS.accent, border: `1px solid ${COLORS.accent}44`, borderRadius: 6, padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{yearDrill} Contracts</div>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted }}>{filteredContracts.filter(c => c.year === yearDrill).length} total</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10, maxHeight: 460, overflowY: "auto" }}>
+                  {filteredContracts.filter(c => c.year === yearDrill).sort((a, b) => (b.value || 0) - (a.value || 0)).map((c, i) => (
+                    <ContractCard key={i} c={c} color={PIE_COLORS[i % PIE_COLORS.length]} onClick={() => setModalContract(c)} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — {viewMode === "cumulative" ? "CUMULATIVE" : "COUNT & VALUE PER YEAR"}</div>
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{viewMode === "cumulative" ? "Running total of contract count and value over time" : "Bars = contract count (left axis) · Line = total value $M (right axis) · click bar for year drill-down"}</div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <ComposedChart data={dealFlowData} margin={{ left: 0, right: 20, top: 10 }} barCategoryGap="30%"
+                    onClick={e => { if (e && e.activePayload && e.activePayload[0] && viewMode !== "cumulative") setYearDrill(e.activePayload[0].payload.year); }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                    <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
+                    <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="value" orientation="right" tick={{ fill: COLORS.gold, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
+                    <Tooltip contentStyle={TT_STYLE} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0]?.payload;
+                        const yoy = yoyDeltas[label];
+                        return (
+                          <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                            <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+                            <div style={{ color: COLORS.accent }}>Contracts: <strong>{d.count}</strong></div>
+                            <div style={{ color: COLORS.gold, marginTop: 3 }}>Value: <strong>{fmtUSD(d.total)}</strong></div>
+                            {yoy && yoy.countDelta != null && (
+                              <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 6, fontSize: 10 }}>
+                                <span style={{ color: yoy.countDelta >= 0 ? COLORS.green : COLORS.pink }}>
+                                  {yoy.countDelta >= 0 ? "▲" : "▼"} {Math.abs(yoy.countDelta)}% contracts YoY
+                                </span>
+                                {yoy.valueDelta != null && (
+                                  <div style={{ color: yoy.valueDelta >= 0 ? COLORS.green : COLORS.pink, marginTop: 2 }}>
+                                    {yoy.valueDelta >= 0 ? "▲" : "▼"} {Math.abs(yoy.valueDelta)}% value YoY
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {viewMode !== "cumulative" && <div style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 4 }}>Click to see {label} contracts</div>}
+                          </div>
+                        );
+                      }} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
+                    {PALANTIR_EVENTS.map(ev => (
+                      <ReferenceLine key={ev.year} yAxisId="count" x={ev.year} stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
+                        label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 7, angle: -45, dy: -4 }} />
+                    ))}
+                    {(() => {
+                      const avgCount = dealFlowData.length > 0 ? dealFlowData.reduce((s, d) => s + d.count, 0) / dealFlowData.length : 0;
+                      return <ReferenceLine yAxisId="count" y={avgCount} stroke={COLORS.textMuted} strokeDasharray="5 3" label={{ value: "Avg", position: "insideTopLeft", fill: COLORS.textMuted, fontSize: 9 }} />;
+                    })()}
+                    <Bar yAxisId="count" dataKey="count" fill={COLORS.accent} radius={[3, 3, 0, 0]} name="# Contracts" maxBarSize={32} opacity={0.85} cursor={viewMode !== "cumulative" ? "pointer" : "default"} />
+                    <Line yAxisId="value" type="monotone" dataKey="total" stroke={COLORS.gold} strokeWidth={2} dot={{ fill: COLORS.gold, r: 3 }} name="Value ($M)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
 
           {/* Col 2: Status breakdown */}
@@ -1147,9 +1360,27 @@ function PalantirDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
               <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} formatter={v => [`$${v.toFixed(1)}M`]} />
+              <Tooltip contentStyle={TT_STYLE} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0]?.payload || {};
+                  const total = (d.defense || 0) + (d.homeland || 0) + (d.health || 0) + (d.intel || 0) + (d.intl || 0) + (d.other || 0);
+                  return (
+                    <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
+                      <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+                      {[["defense","Defense","#00e5ff"],["homeland","Homeland Security","#f59e0b"],["health","Health / Veterans","#22c55e"],["intel","Intelligence","#a78bfa"],["intl","International","#f472b6"],["other","Other Govt","#64748b"]].filter(([k]) => d[k] > 0).map(([k, name, col]) => (
+                        <div key={k} style={{ color: col, marginBottom: 2 }}>{name}: <strong>${(d[k] || 0).toFixed(0)}M</strong></div>
+                      ))}
+                      <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 6, paddingTop: 6, color: COLORS.gold, fontWeight: 700 }}>Total: ${total.toFixed(0)}M</div>
+                    </div>
+                  );
+                }} />
               <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
-              <ReferenceLine x={2026} stroke={COLORS.gold} strokeDasharray="4 4" label={{ value: "2026", fill: COLORS.gold, fontSize: 10 }} />
+              <ReferenceLine x={2026} stroke={COLORS.gold} strokeDasharray="4 4" label={{ value: "2026 (now)", fill: COLORS.gold, fontSize: 10 }} />
+              {PALANTIR_EVENTS.map(ev => (
+                <ReferenceLine key={ev.year} x={ev.year} stroke={ev.color} strokeDasharray="3 3" strokeWidth={1}
+                  label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 7, angle: -45, dy: -4 }} />
+              ))}
               <Area type="monotone" dataKey="defense" stackId="1" stroke="#00e5ff" fill="url(#gDef)" name="Defense" />
               <Area type="monotone" dataKey="homeland" stackId="1" stroke="#f59e0b" fill="url(#gHS)" name="Homeland Security" />
               <Area type="monotone" dataKey="health" stackId="1" stroke="#22c55e" fill="url(#gHL)" name="Health / Veterans" />
@@ -2290,6 +2521,45 @@ function PalantirDashboard() {
         {tab === "KarpTube" && renderKarpTube()}
         {tab === "Inbox" && renderInbox()}
       </div>
+
+      {/* Universal Contract Detail Modal */}
+      {modalContract && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setModalContract(null)}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 28, maxWidth: 560, width: "90%", maxHeight: "80vh", overflowY: "auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text, marginBottom: 3 }}>Contract Detail</div>
+                <div style={{ fontSize: 11, color: COLORS.textMuted }}>{modalContract.name}</div>
+              </div>
+              <button onClick={() => setModalContract(null)} style={{ background: "none", border: "none", color: COLORS.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>&#10005;</button>
+            </div>
+            <ContractCard c={modalContract} color={COLORS.accent} />
+            {modalContract.statusDetail && (
+              <div style={{ marginTop: 12, fontSize: 11, color: COLORS.textDim, lineHeight: 1.6, borderTop: `1px solid ${COLORS.border}`, paddingTop: 12 }}>
+                <span style={{ color: COLORS.textMuted, fontWeight: 600 }}>Detail: </span>{modalContract.statusDetail}
+              </div>
+            )}
+            {modalContract.docs && modalContract.docs.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Source Documents</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {modalContract.docs.map((doc, di) => (
+                    <a key={di} href={doc.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 6, background: `${COLORS.accent}0a`, border: `1px solid ${COLORS.border}`, textDecoration: "none", fontSize: 11, color: COLORS.accent }}>
+                      <span style={{ flex: 1, color: COLORS.text }}>{doc.label}</span>
+                      <span>&#8599;</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {modalContract.url && (
+              <a href={modalContract.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-block", marginTop: 12, fontSize: 11, color: COLORS.accent, textDecoration: "none" }}>View Primary Source &#8594;</a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Export Modal */}
       {exportModal && (
