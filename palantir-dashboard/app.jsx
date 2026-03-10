@@ -109,8 +109,8 @@ function PalantirDashboard() {
   const [rrSortDir, setRrSortDir] = useState("desc");
   const [rrSectorFilter, setRrSectorFilter] = useState("All");
 
-  // ===== OVERVIEW CHART MODE =====
-  const [ovCumMode, setOvCumMode] = useState("both"); // "both" | "cumulative" | "annual"
+  // ===== GLOBAL TIME-SERIES VIEW MODE =====
+  const [viewMode, setViewMode] = useState("annual"); // "annual" | "cumulative"
 
   const pendingCount = useMemo(
     () => pendingItems.filter(i => !approved.has(i.id) && !declined.has(i.id)).length,
@@ -272,6 +272,16 @@ function PalantirDashboard() {
     });
     return Object.values(map).sort((a, b) => a.year - b.year);
   }, []);
+
+  // Cumulative US Gov vs International (for global viewMode)
+  const byYearRegionCumul = useMemo(() => {
+    let usGov = 0, intl = 0;
+    return byYearRegion.map(d => {
+      usGov += d["US Gov"];
+      intl += d["International"];
+      return { year: d.year, "US Gov": usGov, "International": intl };
+    });
+  }, [byYearRegion]);
 
   // Contract value size buckets (Deal Flow)
   const valueBuckets = useMemo(() => {
@@ -437,18 +447,11 @@ function PalantirDashboard() {
 
         {/* Row 2 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {/* Cumulative + annual — with toggle */}
+          {/* Contract Value Over Time */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, letterSpacing: 0.5 }}>CONTRACT VALUE OVER TIME</div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[["both","Both"],["cumulative","Cumulative"],["annual","Annual"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setOvCumMode(v)} style={{ padding: "3px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: `1px solid ${ovCumMode===v ? COLORS.accent : COLORS.border}`, background: ovCumMode===v ? `${COLORS.accent}22` : "transparent", color: ovCumMode===v ? COLORS.accent : COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>{l}</button>
-                ))}
-              </div>
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE OVER TIME</div>
             <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>
-              {ovCumMode === "both" ? "Cyan = cumulative · Gold dashed = annual awarded" : ovCumMode === "cumulative" ? "Total cumulative contract value (all time)" : "Annual contract value awarded per year"}
+              {viewMode === "cumulative" ? "Total cumulative contract value (all time)" : "Annual contract value awarded per year"}
             </div>
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={byYear} margin={{ left: 10, right: 20, top: 10 }}>
@@ -466,8 +469,10 @@ function PalantirDashboard() {
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
                 <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
-                {(ovCumMode === "both" || ovCumMode === "cumulative") && <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />}
-                {(ovCumMode === "both" || ovCumMode === "annual") && <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill={ovCumMode === "annual" ? "url(#grad2)" : "none"} strokeWidth={2} strokeDasharray={ovCumMode === "both" ? "5 5" : undefined} name="Annual" />}
+                {viewMode === "cumulative"
+                  ? <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative Value" />
+                  : <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="url(#grad2)" strokeWidth={2} name="Annual Value" />
+                }
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -475,9 +480,9 @@ function PalantirDashboard() {
           {/* US Gov vs International by year */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>US GOV vs INTERNATIONAL ($M)</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Annual contract value split by customer type</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{viewMode === "cumulative" ? "Cumulative contract value by customer type" : "Annual contract value split by customer type"}</div>
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={byYearRegion} margin={{ left: 10, right: 20, top: 10 }} barCategoryGap="20%">
+              <BarChart data={viewMode === "cumulative" ? byYearRegionCumul : byYearRegion} margin={{ left: 10, right: 20, top: 10 }} barCategoryGap="20%">
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
@@ -727,6 +732,11 @@ function PalantirDashboard() {
   // ===== DEAL FLOW TAB =====
   const renderDealFlow = () => {
     const byYearCount = byYear.map(d => ({ ...d }));
+    const byYearCountCumul = (() => {
+      let c = 0, v = 0;
+      return byYearCount.map(d => { c += d.count; v += d.total; return { ...d, count: c, total: v }; });
+    })();
+    const dealFlowData = viewMode === "cumulative" ? byYearCountCumul : byYearCount;
     const statusData = [
       { name: "Active",       value: CONTRACTS.filter(c => c.status === "Active").length,       fill: COLORS.green },
       { name: "Completed",    value: CONTRACTS.filter(c => c.status === "Completed").length,    fill: COLORS.textMuted },
@@ -746,10 +756,10 @@ function PalantirDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16 }}>
           {/* Col 1: Count + Value per year */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — COUNT & VALUE PER YEAR</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Bars = contract count (left axis) · Line = total value $M (right axis)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — {viewMode === "cumulative" ? "CUMULATIVE" : "COUNT & VALUE PER YEAR"}</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{viewMode === "cumulative" ? "Running total of contract count and value over time" : "Bars = contract count (left axis) · Line = total value $M (right axis)"}</div>
             <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={byYearCount} margin={{ left: 0, right: 20, top: 10 }} barCategoryGap="30%">
+              <ComposedChart data={dealFlowData} margin={{ left: 0, right: 20, top: 10 }} barCategoryGap="30%">
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -2075,15 +2085,25 @@ function PalantirDashboard() {
             <div style={{ color: COLORS.accent }}>CWC ADVISORS</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 0, marginTop: 16 }}>
-          {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", borderBottom: tab === t ? `2px solid ${COLORS.accent}` : "2px solid transparent", color: tab === t ? COLORS.accent : COLORS.textMuted, padding: "10px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.2s", position: "relative" }}>
-              {t}
-              {t === "Inbox" && pendingCount > 0 && (
-                <span style={{ position: "absolute", top: 6, right: 4, background: COLORS.pink, color: "#fff", borderRadius: 8, fontSize: 9, fontWeight: 700, padding: "1px 5px", lineHeight: 1.4 }}>{pendingCount}</span>
-              )}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, borderBottom: `1px solid ${COLORS.border}` }}>
+          <div style={{ display: "flex", gap: 0 }}>
+            {TABS.map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", borderBottom: tab === t ? `2px solid ${COLORS.accent}` : "2px solid transparent", marginBottom: -1, color: tab === t ? COLORS.accent : COLORS.textMuted, padding: "10px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.2s", position: "relative" }}>
+                {t}
+                {t === "Inbox" && pendingCount > 0 && (
+                  <span style={{ position: "absolute", top: 6, right: 4, background: COLORS.pink, color: "#fff", borderRadius: 8, fontSize: 9, fontWeight: 700, padding: "1px 5px", lineHeight: 1.4 }}>{pendingCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 8 }}>
+            <span style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Charts</span>
+            <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 2 }}>
+              {[["annual","Annual"],["cumulative","Cumulative"]].map(([v,l]) => (
+                <button key={v} onClick={() => setViewMode(v)} style={{ padding: "4px 12px", fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: viewMode === v ? COLORS.accent : "transparent", color: viewMode === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.4, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       <div style={{ padding: "20px 28px 40px" }}>
