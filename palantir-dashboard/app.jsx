@@ -161,6 +161,11 @@ function PalantirDashboard() {
     web_search:    { label: "WEB",           color: COLORS.textDim },
   };
 
+  // ===== SHARED TOOLTIP STYLES — lighter bg so text is always visible =====
+  const TT_STYLE = { background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 };
+  const TT_LABEL = { color: COLORS.text, fontWeight: 600 };
+  const TT_ITEM  = { color: COLORS.text };
+
   const years = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.year).filter(Boolean).sort((a, b) => b - a).map(String))], []);
   const countries = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.country).sort())], []);
   const sectors = useMemo(() => ["All", ...new Set(CONTRACTS.map(c => c.sector).sort())], []);
@@ -343,12 +348,12 @@ function PalantirDashboard() {
           {/* Sector value */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY SECTOR ($M)</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.length} sectors · hover for detail</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.filter(d => d.value > 0).length} sectors with disclosed value · {bySector.filter(d => d.value === 0).length} undisclosed</div>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={bySector} layout="vertical" margin={{ left: 10, right: 50 }}>
+              <BarChart data={bySector.filter(d => d.value > 0)} layout="vertical" margin={{ left: 10, right: 50 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
                   {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Bar>
@@ -359,17 +364,28 @@ function PalantirDashboard() {
           {/* Top countries — horizontal bar replaces donut */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY COUNTRY ($M)</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Top 15 countries · all time</div>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={topCountries} layout="vertical" margin={{ left: 10, right: 60 }}>
-                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
-                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
-                  {topCountries.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {(() => {
+              const disclosedCountries = topCountries.filter(d => d.value > 0);
+              const undisclosedCount = byCountry.filter(d => d.value === 0).length;
+              return (
+                <>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>
+                    {disclosedCountries.length} countries with disclosed value
+                    {undisclosedCount > 0 && <span style={{ color: COLORS.textMuted, marginLeft: 8 }}>· {undisclosedCount} country/org with undisclosed contracts (not shown)</span>}
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={disclosedCountries} layout="vertical" margin={{ left: 10, right: 60 }}>
+                      <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                      <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                        {disclosedCountries.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -390,7 +406,7 @@ function PalantirDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
                 <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />
                 <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="none" strokeWidth={2} strokeDasharray="5 5" name="Annual" />
               </AreaChart>
@@ -406,7 +422,7 @@ function PalantirDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
                 <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
                 <Bar dataKey="US Gov" stackId="a" fill={COLORS.accent} name="US Gov" />
                 <Bar dataKey="International" stackId="a" fill={COLORS.gold} name="International" />
@@ -424,7 +440,7 @@ function PalantirDashboard() {
             <BarChart data={byEntity} layout="vertical" margin={{ left: 10, right: 70 }}>
               <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
               <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={160} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={COLORS.accentDim} maxBarSize={26} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }} />
             </BarChart>
           </ResponsiveContainer>
@@ -564,17 +580,28 @@ function PalantirDashboard() {
         {/* Summary bar: top 10 countries */}
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20, marginBottom: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY COUNTRY — TOP 10 ($M)</div>
-          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Total ceiling value all time</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={topCountries.slice(0, 10)} layout="vertical" margin={{ left: 10, right: 60 }}>
-              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
-              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
-                {topCountries.slice(0, 10).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {(() => {
+            const top10 = topCountries.filter(d => d.value > 0).slice(0, 10);
+            const undisclosed = byCountry.filter(d => d.value === 0).length;
+            return (
+              <>
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>
+                  Top {top10.length} countries by disclosed ceiling value
+                  {undisclosed > 0 && <span style={{ color: COLORS.textMuted, marginLeft: 8 }}>· {undisclosed} with undisclosed value (not shown)</span>}
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={top10} layout="vertical" margin={{ left: 10, right: 60 }}>
+                    <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                    <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                      {top10.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
+            );
+          })()}
         </div>
 
         {/* Sort controls */}
@@ -681,7 +708,7 @@ function PalantirDashboard() {
                 <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
                 <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="value" orientation="right" tick={{ fill: COLORS.gold, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
                 <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
                 <Bar yAxisId="count" dataKey="count" fill={COLORS.accent} radius={[3, 3, 0, 0]} name="# Contracts" maxBarSize={32} opacity={0.85} />
                 <Line yAxisId="value" type="monotone" dataKey="total" stroke={COLORS.gold} strokeWidth={2} dot={{ fill: COLORS.gold, r: 3 }} name="Value ($M)" />
@@ -718,7 +745,7 @@ function PalantirDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="name" tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} />
                   <YAxis tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} formatter={(v) => [v, "Contracts"]} />
+                  <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} formatter={(v) => [v, "Contracts"]} />
                   <Bar dataKey="count" radius={[3, 3, 0, 0]} name="Contracts" maxBarSize={36}>
                     {valueBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Bar>
@@ -732,15 +759,27 @@ function PalantirDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Number of contracts by procurement vehicle</div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={procArr} layout="vertical" margin={{ left: 10, right: 40 }}>
-                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={130} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
-                <Bar dataKey="value" fill={COLORS.purple} radius={[0, 4, 4, 0]} name="Count" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>Block area is proportional to contract count · {procArr.length} vehicle types</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignContent: "flex-start" }}>
+              {procArr.map((d, i) => {
+                const col = PIE_COLORS[i % PIE_COLORS.length];
+                return (
+                  <div key={i} style={{
+                    flex: `${d.value * 14} 0 ${Math.max(72, d.value * 14)}px`,
+                    minWidth: 72,
+                    maxWidth: "100%",
+                    padding: "12px 14px",
+                    background: `${col}16`,
+                    border: `1px solid ${col}44`,
+                    borderRadius: 8,
+                    boxSizing: "border-box",
+                  }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: col, lineHeight: 1, marginBottom: 6 }}>{d.value}</div>
+                    <div style={{ fontSize: 10, color: COLORS.textDim, lineHeight: 1.35, wordBreak: "break-word" }}>{d.name || "Unspecified"}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PALANTIR PRODUCT FREQUENCY</div>
@@ -749,7 +788,7 @@ function PalantirDashboard() {
               <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 40 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
                 <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
               </BarChart>
             </ResponsiveContainer>
@@ -819,7 +858,7 @@ function PalantirDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
               <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
               <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} formatter={v => [`$${v.toFixed(1)}M`]} />
+              <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} formatter={v => [`$${v.toFixed(1)}M`]} />
               <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
               <ReferenceLine x={2026} stroke={COLORS.gold} strokeDasharray="4 4" label={{ value: "2026", fill: COLORS.gold, fontSize: 10 }} />
               <Area type="monotone" dataKey="defense" stackId="1" stroke="#00e5ff" fill="url(#gDef)" name="Defense" />
@@ -841,7 +880,7 @@ function PalantirDashboard() {
               <BarChart data={topByRunRate} layout="vertical" margin={{ left: 10, right: 60 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={150} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Annual Run Rate"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Annual Run Rate"]} />
                 <Bar dataKey="av" fill={COLORS.accent} radius={[0, 4, 4, 0]} maxBarSize={22} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
                   {topByRunRate.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Bar>
@@ -858,7 +897,7 @@ function PalantirDashboard() {
                 layout="vertical" margin={{ left: 10, right: 60 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}M`} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Run Rate"]} />
+                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Run Rate"]} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
                   {[COLORS.accent, COLORS.gold, COLORS.green, COLORS.purple, COLORS.pink, COLORS.red].map((c, i) => <Cell key={i} fill={c} />)}
                 </Bar>
