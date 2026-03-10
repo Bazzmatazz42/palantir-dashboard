@@ -112,9 +112,14 @@ function PalantirDashboard() {
   const [srcSortDir, setSrcSortDir] = useState("asc");
 
   // ===== FINANCIALS STATE =====
-  const [finView, setFinView] = useState("quarterly"); // "quarterly" | "annual"
-  const [finDrillQ, setFinDrillQ] = useState(null);   // quarter string for drill-down
-  const [finMetric, setFinMetric] = useState("revenue"); // "revenue" | "growth" | "mix"
+  const [finView, setFinView] = useState("quarterly");
+  const [finDrillQ, setFinDrillQ] = useState(null);
+  const [finCat, setFinCat] = useState("Revenue");
+  const [finPrimary, setFinPrimary] = useState("rev");
+  const [finCompare, setFinCompare] = useState("null");
+  const [finRange, setFinRange] = useState("all");
+  const [finChartType, setFinChartType] = useState("bar");
+  const [finMetric, setFinMetric] = useState("revenue"); // legacy, kept for compat
 
   // ===== KARPTUBE STATE =====
   const karpItems = useMemo(() => window.KARPTUBE_ITEMS || [], []);
@@ -1583,278 +1588,334 @@ function PalantirDashboard() {
 
   // ===== FINANCIALS TAB =====
   const renderFinancials = () => {
+    const FIN = window.PLTR_FINANCIALS;
     const DOCS = window.PALANTIR_OFFICIAL_DOCS;
-    const rawEarnings = DOCS.earnings;
-    const annualRev = DOCS.annualRevenue;
-    const metrics = DOCS.latestMetrics;
+    const allQ = FIN.quarters;
+    const metaCat = FIN.metrics;
+    const latestMetrics = DOCS.latestMetrics;
+    // ── helpers ──────────────────────────────────────────────────────────────
+    const fmtVal = (v, fmt) => {
+      if (v == null) return "—";
+      if (fmt === "usd")        return v >= 1000 ? `$${(v/1000).toFixed(2)}B` : `$${v.toFixed(0)}M`;
+      if (fmt === "usd_signed") return (v >= 0 ? "+" : "") + (Math.abs(v) >= 1000 ? `$${(Math.abs(v)/1000).toFixed(2)}B` : `$${Math.abs(v).toFixed(0)}M`);
+      if (fmt === "pct")        return `${v.toFixed(1)}%`;
+      if (fmt === "pct_signed") return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+      if (fmt === "count")      return v.toLocaleString();
+      if (fmt === "eps")        return `$${v.toFixed(2)}`;
+      return String(v);
+    };
+    const getMeta  = key => metaCat.find(m => m.key === key) || { key, label: key, fmt: "count", color: COLORS.accent, unit: "" };
+    const getColor = key => getMeta(key).color;
+    const getCats  = () => [...new Set(metaCat.map(m => m.cat))];
 
-    // Enrich quarterly data
-    const quarterly = rawEarnings.map((q, i) => {
-      const commercial = q.revenue - (q.usGovRev || 0);
-      const govPct = Math.round(((q.usGovRev || 0) / q.revenue) * 100);
-      const [qNum, qYearStr] = q.quarter.split(" ");
-      const prevYearQ = `${qNum} ${parseInt(qYearStr) - 1}`;
-      const prevYearData = rawEarnings.find(e => e.quarter === prevYearQ);
-      const yoyGrowth = prevYearData ? Math.round(((q.revenue - prevYearData.revenue) / prevYearData.revenue) * 100) : null;
-      const qoqGrowth = i > 0 ? Math.round(((q.revenue - rawEarnings[i-1].revenue) / rawEarnings[i-1].revenue) * 100) : null;
-      return { ...q, commercial, govPct, yoyGrowth, qoqGrowth };
-    });
+    // ── filtered data ────────────────────────────────────────────────────────
+    const rangeData = (() => {
+      let data = [...allQ];
+      if (finRange === "2022") data = data.filter(d => d.q >= "Q1 2022");
+      if (finRange === "2024") data = data.filter(d => d.q >= "Q1 2024");
+      if (finRange === "last8") data = data.slice(-8);
+      return data;
+    })();
 
-    // Enrich annual data
-    const annual = annualRev.map((a, i) => {
-      const commercial = a.total - a.govt;
-      const yoyGrowth = i > 0 ? Math.round(((a.total - annualRev[i-1].total) / annualRev[i-1].total) * 100) : null;
-      return { ...a, commercial, yoyGrowth };
-    });
+    const catMetrics = metaCat.filter(m => m.cat === finCat);
+    const primaryMeta = getMeta(finPrimary);
+    const compareMeta = finCompare !== "null" ? getMeta(finCompare) : null;
+    const hasPrimaryData = rangeData.some(d => d[finPrimary] != null);
 
-    const displayData = finView === "quarterly" ? quarterly : annual;
-    const xKey = finView === "quarterly" ? "quarter" : "year";
-    const latestQ = quarterly[quarterly.length - 1];
-    const prevYearLatest = quarterly.find(q => q.quarter === `Q4 ${parseInt(latestQ.quarter.split(" ")[1]) - 1}`);
-
-    // Drill-down: find linked letter + earnings release for a quarter
-    const getDocs = (qLabel) => ({
-      letter: DOCS.letters.find(l => l.quarter === qLabel),
-      earnings: DOCS.earnings.find(e => e.quarter === qLabel),
+    // ── drill-down docs ──────────────────────────────────────────────────────
+    const getDocs = qLabel => ({
+      letter:       DOCS.letters.find(l => l.quarter === qLabel),
+      earnings:     (DOCS.earnings || []).find(e => e.quarter === qLabel),
       presentation: DOCS.presentations.find(p => p.quarter === qLabel),
     });
 
-    const statCard = (label, value, sub, color) => (
-      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "16px 20px" }}>
-        <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: color || COLORS.accent, lineHeight: 1 }}>{value}</div>
-        {sub && <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 5 }}>{sub}</div>}
+    // ── KPI stat cards ───────────────────────────────────────────────────────
+    const SC = ({ label, value, sub, color }) => (
+      <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 18px" }}>
+        <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: color || COLORS.accent, lineHeight: 1 }}>{value}</div>
+        {sub && <div style={{ fontSize: 9, color: COLORS.textDim, marginTop: 4, lineHeight: 1.3 }}>{sub}</div>}
       </div>
     );
 
-    const CHART_EVENTS = PALANTIR_EVENTS.filter(e => finView === "quarterly"
-      ? quarterly.some(q => q.quarter.includes(String(e.year)))
-      : annual.some(a => a.year === e.year)
-    );
+    // ── chart events for range ────────────────────────────────────────────────
+    const chartEvents = PALANTIR_EVENTS.filter(ev => rangeData.some(d => d.q && d.q.includes(String(ev.year))));
+
+    // ── tooltip content ──────────────────────────────────────────────────────
+    const FinTooltip = ({ active, payload, label }) => {
+      if (!active || !payload?.length) return null;
+      const d = payload[0]?.payload;
+      const ev = PALANTIR_EVENTS.find(e => d?.q?.includes(String(e.year)));
+      return (
+        <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11, minWidth: 200, maxWidth: 280 }}>
+          <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 8, fontSize: 12 }}>{label}</div>
+          <div style={{ color: primaryMeta.color, marginBottom: 4 }}>
+            {primaryMeta.label}: <strong>{fmtVal(d?.[finPrimary], primaryMeta.fmt)}</strong>
+          </div>
+          {compareMeta && d?.[finCompare] != null && (
+            <div style={{ color: compareMeta.color, marginBottom: 4 }}>
+              {compareMeta.label}: <strong>{fmtVal(d?.[finCompare], compareMeta.fmt)}</strong>
+            </div>
+          )}
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 8, paddingTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px", fontSize: 10 }}>
+            {[["Revenue", d?.rev, "usd"], ["Gov Seg", d?.govSeg, "usd"], ["Commercial", d?.com, "usd"],
+              ["GAAP Op Inc", d?.opIncome, "usd_signed"], ["Adj Op Inc", d?.adjOpIncome, "usd_signed"],
+              ["FCF", d?.fcf, "usd_signed"], ["YoY Growth", d?.revYoY, "pct"],
+              ["Gross Margin", d?.gm, "pct"], ["Customers", d?.customers, "count"]
+            ].filter(([, v]) => v != null).slice(0, 8).map(([lbl, val, fmt]) => (
+              <div key={lbl}>
+                <span style={{ color: COLORS.textMuted }}>{lbl} </span>
+                <span style={{ color: COLORS.textDim }}>{fmtVal(val, fmt)}</span>
+              </div>
+            ))}
+          </div>
+          {ev && <div style={{ marginTop: 8, fontSize: 9, color: ev.color, fontWeight: 600, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>★ {ev.label}</div>}
+          {d?.note && <div style={{ marginTop: 6, fontSize: 9, color: COLORS.textMuted, lineHeight: 1.3, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6 }}>{d.note}</div>}
+          <div style={{ marginTop: 6, fontSize: 9, color: COLORS.textMuted }}>Click to drill into full quarter detail</div>
+        </div>
+      );
+    };
+
+    // annualRev kept for future use
+    const annualRev = DOCS.annualRevenue;
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-        {/* KPI row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-          {statCard("FY 2025 Revenue", "$4.48B", "+53% YoY · 954 customers", COLORS.accent)}
-          {statCard("Q4 2025 Revenue", "$1.407B", "+70% YoY · first >$1B×4 quarters", COLORS.green)}
-          {statCard("US Gov Revenue FY25", "$1.855B", "+66% YoY · 41% of total", COLORS.gold)}
-          {statCard("Net Dollar Retention", "139%", "As of Q4 2025", COLORS.pink)}
-          {statCard("Remaining Deal Value", "$11.2B", "+105% YoY", COLORS.accent)}
-          {statCard("Remaining Perf. Oblig.", "$4.2B", "+144% YoY", "#a78bfa")}
-          {statCard("FY 2026 Guidance", "$7.18–7.20B", "+61% YoY guided growth", COLORS.green)}
-          {statCard("Total Customers", "954", "Up from 618 in FY 2024", COLORS.gold)}
+        {/* ── KPI snapshot ─────────────────────────────────────────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10 }}>
+          <SC label="FY 2025 Revenue"        value="$4.48B"    sub="+53% YoY · 22 quarters reported"    color={COLORS.accent} />
+          <SC label="Q4 2025 Revenue"        value="$1.407B"   sub="+70% YoY · first >$1B × 4 qtrs"     color={COLORS.green} />
+          <SC label="US Gov Rev FY25"        value="$1.855B"   sub="+66% YoY · 41% of total"            color={COLORS.gold} />
+          <SC label="US Comm Rev FY25"       value="$1.393B"   sub="+120%+ YoY growth"                  color="#a78bfa" />
+          <SC label="Adj Op Margin Q4 25"    value="~49.8%"    sub="Rule of 40 = 120"                   color={COLORS.green} />
+          <SC label="FCF Q4 2025"            value="$799M"     sub="FCF margin 56.8%"                   color="#34d399" />
+          <SC label="Net Dollar Retention"   value="139%"      sub="Q4 2025 · up from 107% (Q4 2023)"   color={COLORS.pink} />
+          <SC label="Remaining Deal Value"   value="$11.2B"    sub="+105% YoY · RPO $4.2B (+144%)"      color="#fbbf24" />
+          <SC label="FY 2026 Guidance"       value="$7.18–7.20B" sub="+61% YoY · US Comm +115% guided" color={COLORS.accent} />
+          <SC label="Total Customers"        value="954"       sub="954 at Q4 2025 · 702 US commercial"  color={COLORS.gold} />
         </div>
 
-        {/* Chart controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 2 }}>
-            {[["quarterly", "Quarterly"], ["annual", "Annual"]].map(([v, l]) => (
-              <button key={v} onClick={() => { setFinView(v); setFinDrillQ(null); }}
-                style={{ padding: "4px 14px", fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: finView === v ? COLORS.accent : "transparent", color: finView === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.4, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
-            ))}
-          </div>
-          <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 2 }}>
-            {[["revenue", "Revenue Split"], ["growth", "YoY Growth %"], ["mix", "Govt Mix %"]].map(([v, l]) => (
-              <button key={v} onClick={() => setFinMetric(v)}
-                style={{ padding: "4px 14px", fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: finMetric === v ? COLORS.accent : "transparent", color: finMetric === v ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.4, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
-            ))}
-          </div>
-          {finDrillQ && (
-            <button onClick={() => setFinDrillQ(null)}
-              style={{ background: `${COLORS.accent}18`, color: COLORS.accent, border: `1px solid ${COLORS.accent}44`, borderRadius: 6, padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>← Back to chart</button>
+        {/* ── Chart module ──────────────────────────────────────────────────── */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+
+          {finDrillQ ? (
+            // ── DRILL-DOWN ────────────────────────────────────────────────────
+            (() => {
+              const qd = allQ.find(q => q.q === finDrillQ);
+              const docs = getDocs(finDrillQ);
+              const col = COLORS.accent;
+              const allMetrics = metaCat.filter(m => qd?.[m.key] != null);
+              return (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                    <button onClick={() => setFinDrillQ(null)} style={{ background: `${col}18`, color: col, border: `1px solid ${col}44`, borderRadius: 6, padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>{finDrillQ} — Full Quarter Detail</span>
+                      {qd?.note && <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: 2 }}>{qd.note}</div>}
+                    </div>
+                  </div>
+                  {/* All metrics grid */}
+                  {getCats().map(cat => {
+                    const catMs = metaCat.filter(m => m.cat === cat && qd?.[m.key] != null);
+                    if (!catMs.length) return null;
+                    return (
+                      <div key={cat} style={{ marginBottom: 18 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8, borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 6 }}>{cat}</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                          {catMs.map(m => (
+                            <div key={m.key} style={{ background: `${m.color}08`, border: `1px solid ${m.color}25`, borderRadius: 7, padding: "10px 14px" }}>
+                              <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 3 }}>{m.label}</div>
+                              <div style={{ fontSize: 17, fontWeight: 800, color: m.color }}>{fmtVal(qd[m.key], m.fmt)}</div>
+                              {m.note && <div style={{ fontSize: 8, color: COLORS.textMuted, marginTop: 3 }}>{m.note}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Source docs */}
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.textMuted, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 }}>Source Documents</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[
+                        docs.letter       && { label: "Shareholder Letter",          url: docs.letter.url,       note: docs.letter.notes },
+                        docs.earnings     && { label: "Earnings Press Release",       url: docs.earnings.url,     note: docs.earnings.notes },
+                        docs.presentation && { label: "Investor Presentation (PDF)",  url: docs.presentation.url, note: "" },
+                      ].filter(Boolean).map((doc, i) => (
+                        <a key={i} href={doc.url} target="_blank" rel="noopener noreferrer"
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${COLORS.accentDim}10`, border: `1px solid ${COLORS.accentDim}30`, borderRadius: 7, padding: "10px 14px", textDecoration: "none" }}>
+                          <span style={{ fontSize: 11, color: COLORS.accent, fontWeight: 600 }}>{doc.label}</span>
+                          {doc.note && <span style={{ fontSize: 9, color: COLORS.textMuted, maxWidth: "55%", textAlign: "right" }}>{doc.note}</span>}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            // ── CHART MODULE ──────────────────────────────────────────────────
+            <div>
+              {/* Controls row */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 16 }}>
+
+                {/* Category tabs */}
+                <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 1 }}>
+                  {getCats().map(cat => (
+                    <button key={cat} onClick={() => { setFinCat(cat); setFinPrimary(metaCat.find(m => m.cat === cat)?.key || finPrimary); }}
+                      style={{ padding: "4px 12px", fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: finCat === cat ? COLORS.accent : "transparent", color: finCat === cat ? "#0a0e17" : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{cat}</button>
+                  ))}
+                </div>
+
+                {/* Primary metric dropdown */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted, whiteSpace: "nowrap" }}>Metric</span>
+                  <select value={finPrimary} onChange={e => setFinPrimary(e.target.value)}
+                    style={{ background: "#182638", color: COLORS.text, border: `1px solid ${COLORS.accent}55`, borderRadius: 5, padding: "4px 10px", fontSize: 11, cursor: "pointer", outline: "none" }}>
+                    {catMetrics.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  </select>
+                </div>
+
+                {/* Compare metric dropdown */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 9, color: COLORS.textMuted, whiteSpace: "nowrap" }}>Compare</span>
+                  <select value={finCompare} onChange={e => setFinCompare(e.target.value)}
+                    style={{ background: "#182638", color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 5, padding: "4px 10px", fontSize: 11, cursor: "pointer", outline: "none" }}>
+                    <option value="null">— None —</option>
+                    {metaCat.filter(m => m.key !== finPrimary).map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  </select>
+                </div>
+
+                {/* Range filter */}
+                <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 1 }}>
+                  {[["all","All"],["2022","2022+"],["2024","2024+"],["last8","Last 8Q"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setFinRange(v)}
+                      style={{ padding: "4px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: finRange === v ? `${COLORS.accent}33` : "transparent", color: finRange === v ? COLORS.accent : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.15s" }}>{l}</button>
+                  ))}
+                </div>
+
+                {/* Chart type */}
+                <div style={{ display: "flex", background: `${COLORS.border}55`, borderRadius: 6, padding: 2, gap: 1 }}>
+                  {[["bar","Bar"],["line","Line"],["area","Area"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setFinChartType(v)}
+                      style={{ padding: "4px 10px", fontSize: 9, fontWeight: 700, borderRadius: 4, cursor: "pointer", border: "none", background: finChartType === v ? `${COLORS.accent}33` : "transparent", color: finChartType === v ? COLORS.accent : COLORS.textMuted, letterSpacing: 0.3, textTransform: "uppercase" }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chart title */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{primaryMeta.label}</div>
+                {compareMeta && <div style={{ fontSize: 11, color: compareMeta.color }}>vs {compareMeta.label}</div>}
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginLeft: "auto" }}>Click any data point to drill into that quarter</div>
+              </div>
+
+              {!hasPrimaryData ? (
+                <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: COLORS.textMuted, fontSize: 12 }}>
+                  No data available for <strong style={{ color: COLORS.textDim, marginLeft: 6 }}>{primaryMeta.label}</strong> in selected range. Try "All" range or a different metric.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={360}>
+                  <ComposedChart data={rangeData} margin={{ left: 10, right: compareMeta ? 60 : 20, top: 28, bottom: 50 }} barCategoryGap="18%"
+                    onClick={e => { if (e?.activePayload?.[0]) setFinDrillQ(e.activePayload[0].payload.q); }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
+                    <XAxis dataKey="q" tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} angle={-40} textAnchor="end" interval={0} dy={4} />
+                    <YAxis yAxisId="primary" orientation="left" tick={{ fill: primaryMeta.color, fontSize: 10 }} axisLine={false} tickLine={false}
+                      tickFormatter={v => primaryMeta.unit === "$M" ? (Math.abs(v) >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v}M`) : primaryMeta.unit === "%" ? `${v}%` : v} />
+                    {compareMeta && (
+                      <YAxis yAxisId="compare" orientation="right" tick={{ fill: compareMeta.color, fontSize: 10 }} axisLine={false} tickLine={false}
+                        tickFormatter={v => compareMeta.unit === "$M" ? (Math.abs(v) >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v}M`) : compareMeta.unit === "%" ? `${v}%` : v} />
+                    )}
+                    <Tooltip content={<FinTooltip />} />
+                    {/* zero line for signed metrics */}
+                    {["usd_signed","pct_signed"].includes(primaryMeta.fmt) && (
+                      <ReferenceLine yAxisId="primary" y={0} stroke={COLORS.textMuted} strokeDasharray="4 2" label={{ value: "Breakeven", position: "insideTopLeft", fill: COLORS.textMuted, fontSize: 9 }} />
+                    )}
+                    {/* Palantir event markers */}
+                    {chartEvents.map(ev => (
+                      <ReferenceLine key={ev.year} yAxisId="primary" x={`Q4 ${ev.year}`} stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
+                        label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 8, angle: -35, dy: -6 }} />
+                    ))}
+                    {/* Primary series */}
+                    {finChartType === "bar" && (
+                      <Bar yAxisId="primary" dataKey={finPrimary} name={primaryMeta.label} radius={[3,3,0,0]} cursor="pointer" maxBarSize={40}>
+                        {rangeData.map((d, i) => (
+                          <Cell key={i} fill={primaryMeta.color} fillOpacity={d[finPrimary] < 0 ? 0.5 : 0.85} />
+                        ))}
+                      </Bar>
+                    )}
+                    {finChartType === "line" && (
+                      <Line yAxisId="primary" type="monotone" dataKey={finPrimary} stroke={primaryMeta.color} strokeWidth={2.5} dot={{ r: 4, fill: primaryMeta.color, strokeWidth: 0 }} activeDot={{ r: 6 }} name={primaryMeta.label} connectNulls={false} />
+                    )}
+                    {finChartType === "area" && (
+                      <Area yAxisId="primary" type="monotone" dataKey={finPrimary} stroke={primaryMeta.color} fill={`${primaryMeta.color}25`} strokeWidth={2} dot={{ r: 3, fill: primaryMeta.color }} name={primaryMeta.label} connectNulls={false} />
+                    )}
+                    {/* Compare series — always a line */}
+                    {compareMeta && (
+                      <Line yAxisId="compare" type="monotone" dataKey={finCompare} stroke={compareMeta.color} strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: compareMeta.color }} name={compareMeta.label} connectNulls={false} />
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+
+              {/* Mini metric info bar */}
+              {primaryMeta.note && (
+                <div style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 8, padding: "4px 10px", background: `${COLORS.accent}08`, borderRadius: 4, borderLeft: `2px solid ${COLORS.accent}44` }}>
+                  Note: {primaryMeta.note}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Main chart or drill-down */}
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          {finDrillQ ? (() => {
-            const qData = quarterly.find(q => q.quarter === finDrillQ);
-            const docs = getDocs(finDrillQ);
-            const col = COLORS.accent;
-            return (
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>{finDrillQ} — Earnings Detail</div>
-                {qData?.notes && <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 16, padding: "8px 12px", background: `${COLORS.accent}10`, borderRadius: 6, borderLeft: `3px solid ${COLORS.accent}` }}>{qData.notes}</div>}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-                  {[
-                    ["Total Revenue", `$${qData?.revenue >= 1000 ? (qData.revenue/1000).toFixed(3)+"B" : qData?.revenue+"M"}`],
-                    ["US Gov Revenue", `$${qData?.usGovRev}M`],
-                    ["Commercial Rev", `$${qData?.commercial?.toFixed(0)}M`],
-                    ["Govt % of Rev", `${qData?.govPct}%`],
-                    ["YoY Growth", qData?.yoyGrowth != null ? `${qData.yoyGrowth > 0 ? "+" : ""}${qData.yoyGrowth}%` : "—"],
-                    ["QoQ Growth", qData?.qoqGrowth != null ? `${qData.qoqGrowth > 0 ? "+" : ""}${qData.qoqGrowth}%` : "—"],
-                  ].map(([label, val]) => (
-                    <div key={label} style={{ background: `${col}08`, border: `1px solid ${col}22`, borderRadius: 8, padding: "12px 16px" }}>
-                      <div style={{ fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: col }}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.textDim, marginBottom: 4, letterSpacing: 0.5 }}>SOURCE DOCUMENTS</div>
-                  {[
-                    docs.letter && { label: "Shareholder Letter", url: docs.letter.url, note: docs.letter.notes },
-                    docs.earnings && { label: "Earnings Press Release", url: docs.earnings.url, note: docs.earnings.notes },
-                    docs.presentation && { label: "Investor Presentation (PDF)", url: docs.presentation.url, note: "" },
-                  ].filter(Boolean).map((doc, i) => (
-                    <a key={i} href={doc.url} target="_blank" rel="noopener noreferrer"
-                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: `${COLORS.accentDim}10`, border: `1px solid ${COLORS.accentDim}30`, borderRadius: 7, padding: "10px 14px", textDecoration: "none" }}>
-                      <span style={{ fontSize: 11, color: COLORS.accent, fontWeight: 600 }}>{doc.label}</span>
-                      {doc.note && <span style={{ fontSize: 9, color: COLORS.textMuted, maxWidth: "60%", textAlign: "right" }}>{doc.note}</span>}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            );
-          })() : (() => {
-            const chartTitle = { revenue: "Revenue Split — US Gov vs Commercial", growth: "Year-over-Year Revenue Growth %", mix: "Government Revenue as % of Total" }[finMetric];
-            const chartSub = { revenue: "Stacked bars · click any bar to drill into that period", growth: "% change vs same period prior year · reference line at 0%", mix: "Declining govt mix reflects commercial acceleration" }[finMetric];
-
-            return (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 3, letterSpacing: 0.5 }}>{chartTitle}</div>
-                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>{chartSub}</div>
-                {finMetric === "revenue" && (
-                  <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart data={displayData} margin={{ left: 10, right: 20, top: 20, bottom: finView === "quarterly" ? 50 : 10 }} barCategoryGap="20%"
-                      onClick={e => { if (e?.activePayload?.[0] && finView === "quarterly") setFinDrillQ(e.activePayload[0].payload.quarter); }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-                      <XAxis dataKey={xKey} tick={{ fill: COLORS.textDim, fontSize: finView === "quarterly" ? 9 : 11 }} axisLine={false} angle={finView === "quarterly" ? -45 : 0} textAnchor={finView === "quarterly" ? "end" : "middle"} interval={0} />
-                      <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v}M`} />
-                      <Tooltip content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0]?.payload;
-                        return (
-                          <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11, minWidth: 200 }}>
-                            <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 8 }}>{label}</div>
-                            <div style={{ color: COLORS.gold, marginBottom: 3 }}>US Gov: <strong>${d?.usGovRev || d?.govt}M</strong> ({d?.govPct ?? Math.round(((d?.govt||0)/d?.total)*100)}%)</div>
-                            <div style={{ color: COLORS.accent, marginBottom: 3 }}>Commercial: <strong>${d?.commercial?.toFixed(0)}M</strong></div>
-                            <div style={{ color: COLORS.text, borderTop: `1px solid ${COLORS.border}`, paddingTop: 6, marginTop: 6 }}>Total: <strong>{fmtUSD((d?.revenue || d?.total))}</strong></div>
-                            {d?.yoyGrowth != null && <div style={{ marginTop: 4, color: d.yoyGrowth >= 0 ? COLORS.green : COLORS.pink, fontSize: 10 }}>{d.yoyGrowth >= 0 ? "▲" : "▼"} {Math.abs(d.yoyGrowth)}% YoY</div>}
-                            {finView === "quarterly" && <div style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 4 }}>Click to see full details & source docs</div>}
-                          </div>
-                        );
-                      }} />
-                      {CHART_EVENTS.map(ev => (
-                        <ReferenceLine key={ev.year} x={finView === "quarterly" ? `Q4 ${ev.year}` : ev.year}
-                          stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
-                          label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 8, angle: -40, dy: -8 }} />
-                      ))}
-                      <Bar dataKey={finView === "quarterly" ? "usGovRev" : "govt"} stackId="rev" fill={COLORS.gold} name="US Gov Revenue" radius={[0,0,0,0]} cursor={finView === "quarterly" ? "pointer" : "default"} />
-                      <Bar dataKey="commercial" stackId="rev" fill={COLORS.accent} name="Commercial Revenue" radius={[3,3,0,0]} cursor={finView === "quarterly" ? "pointer" : "default"} />
-                      <Line type="monotone" dataKey={finView === "quarterly" ? "revenue" : "total"} stroke={COLORS.pink} strokeWidth={2} dot={{ r: 3, fill: COLORS.pink }} name="Total Revenue" />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                )}
-                {finMetric === "growth" && (
-                  <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart data={displayData.filter(d => d.yoyGrowth != null)} margin={{ left: 10, right: 20, top: 20, bottom: finView === "quarterly" ? 50 : 10 }} barCategoryGap="20%">
-                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-                      <XAxis dataKey={xKey} tick={{ fill: COLORS.textDim, fontSize: finView === "quarterly" ? 9 : 11 }} axisLine={false} angle={finView === "quarterly" ? -45 : 0} textAnchor={finView === "quarterly" ? "end" : "middle"} interval={0} />
-                      <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                      <ReferenceLine y={0} stroke={COLORS.border} strokeWidth={2} />
-                      <ReferenceLine y={50} stroke={COLORS.green} strokeDasharray="5 3" label={{ value: "50%", position: "insideTopRight", fill: COLORS.green, fontSize: 9 }} />
-                      {CHART_EVENTS.map(ev => (
-                        <ReferenceLine key={ev.year} x={finView === "quarterly" ? `Q4 ${ev.year}` : ev.year}
-                          stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
-                          label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 8, angle: -40, dy: -8 }} />
-                      ))}
-                      <Tooltip content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0]?.payload;
-                        return (
-                          <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
-                            <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
-                            <div style={{ color: d?.yoyGrowth >= 0 ? COLORS.green : COLORS.pink }}>YoY Growth: <strong>{d?.yoyGrowth > 0 ? "+" : ""}{d?.yoyGrowth}%</strong></div>
-                            <div style={{ color: COLORS.textDim, marginTop: 3 }}>Revenue: {fmtUSD(d?.revenue || d?.total)}</div>
-                          </div>
-                        );
-                      }} />
-                      <Bar dataKey="yoyGrowth" name="YoY Growth %" radius={[3,3,0,0]} cursor="default">
-                        {displayData.filter(d => d.yoyGrowth != null).map((d, i) => (
-                          <Cell key={i} fill={d.yoyGrowth >= 0 ? COLORS.green : COLORS.pink} fillOpacity={0.8} />
-                        ))}
-                      </Bar>
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                )}
-                {finMetric === "mix" && (
-                  <ResponsiveContainer width="100%" height={360}>
-                    <ComposedChart data={displayData} margin={{ left: 10, right: 20, top: 20, bottom: finView === "quarterly" ? 50 : 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} vertical={false} />
-                      <XAxis dataKey={xKey} tick={{ fill: COLORS.textDim, fontSize: finView === "quarterly" ? 9 : 11 }} axisLine={false} angle={finView === "quarterly" ? -45 : 0} textAnchor={finView === "quarterly" ? "end" : "middle"} interval={0} />
-                      <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={v => `${v}%`} />
-                      <ReferenceLine y={50} stroke={COLORS.border} strokeDasharray="5 3" label={{ value: "50/50", position: "insideTopRight", fill: COLORS.textMuted, fontSize: 9 }} />
-                      {CHART_EVENTS.map(ev => (
-                        <ReferenceLine key={ev.year} x={finView === "quarterly" ? `Q4 ${ev.year}` : ev.year}
-                          stroke={ev.color} strokeDasharray="4 3" strokeWidth={1.5}
-                          label={{ value: ev.label, position: "top", fill: ev.color, fontSize: 8, angle: -40, dy: -8 }} />
-                      ))}
-                      <Tooltip content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const d = payload[0]?.payload;
-                        const gPct = d?.govPct ?? Math.round(((d?.govt||0)/d?.total)*100);
-                        return (
-                          <div style={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, padding: "10px 14px", fontSize: 11 }}>
-                            <div style={{ color: COLORS.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
-                            <div style={{ color: COLORS.gold }}>Govt: <strong>{gPct}%</strong></div>
-                            <div style={{ color: COLORS.accent }}>Commercial: <strong>{100 - gPct}%</strong></div>
-                            <div style={{ color: COLORS.textDim, marginTop: 3, fontSize: 10 }}>Total: {fmtUSD(d?.revenue || d?.total)}</div>
-                          </div>
-                        );
-                      }} />
-                      <Area type="monotone" dataKey="govPct" stroke={COLORS.gold} fill={`${COLORS.gold}20`} strokeWidth={2} name="Govt %" dot={finView === "annual" ? { r: 4, fill: COLORS.gold } : false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Quarterly breakdown table */}
+        {/* ── All-metrics data table ─────────────────────────────────────────── */}
         {!finDrillQ && (
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 14, letterSpacing: 0.5 }}>
-              {finView === "quarterly" ? "QUARTERLY EARNINGS TABLE" : "ANNUAL REVENUE TABLE"}
-            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 14, letterSpacing: 0.5 }}>QUARTERLY FINANCIAL DATA TABLE</div>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, whiteSpace: "nowrap" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                    {(finView === "quarterly"
-                      ? ["Period", "Total Rev", "US Gov", "Commercial", "Govt %", "YoY", "QoQ", "Notes"]
-                      : ["Year", "Total Rev", "Govt Rev", "Commercial", "Govt %", "YoY Growth", "Source"]
-                    ).map(h => <th key={h} style={{ textAlign: "left", padding: "6px 10px", fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 700 }}>{h}</th>)}
+                    <th style={{ textAlign: "left", padding: "6px 10px", fontSize: 9, color: COLORS.textMuted, letterSpacing: 0.5, textTransform: "uppercase", position: "sticky", left: 0, background: COLORS.card }}>Quarter</th>
+                    {metaCat.map(m => (
+                      <th key={m.key} onClick={() => { setFinCat(m.cat); setFinPrimary(m.key); }}
+                        style={{ textAlign: "right", padding: "6px 10px", fontSize: 9, color: m.key === finPrimary ? m.color : COLORS.textMuted, letterSpacing: 0.4, textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap" }}
+                        title={m.note || m.label}>{m.label.length > 16 ? m.label.slice(0,14)+"…" : m.label}</th>
+                    ))}
+                    <th style={{ textAlign: "left", padding: "6px 10px", fontSize: 9, color: COLORS.textMuted }}>Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(finView === "quarterly" ? [...quarterly].reverse() : [...annual].reverse()).map((row, i) => {
+                  {[...rangeData].reverse().map((row, i) => {
                     const isLatest = i === 0;
-                    const yoy = row.yoyGrowth;
-                    const qoq = row.qoqGrowth;
+                    const qEv = PALANTIR_EVENTS.find(e => row.q?.includes(String(e.year)));
                     return (
-                      <tr key={i} onClick={() => finView === "quarterly" && setFinDrillQ(row.quarter)}
-                        style={{ borderBottom: `1px solid ${COLORS.border}22`, cursor: finView === "quarterly" ? "pointer" : "default", background: isLatest ? `${COLORS.accent}08` : "transparent", transition: "background 0.15s" }}
+                      <tr key={i} onClick={() => setFinDrillQ(row.q)}
+                        style={{ borderBottom: `1px solid ${COLORS.border}18`, cursor: "pointer", background: isLatest ? `${COLORS.accent}08` : "transparent", transition: "background 0.1s" }}
                         onMouseEnter={e => e.currentTarget.style.background = `${COLORS.accent}10`}
                         onMouseLeave={e => e.currentTarget.style.background = isLatest ? `${COLORS.accent}08` : "transparent"}>
-                        <td style={{ padding: "8px 10px", color: isLatest ? COLORS.accent : COLORS.textDim, fontWeight: isLatest ? 700 : 400 }}>{row.quarter || row.year}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.text, fontWeight: 700 }}>{fmtUSD(row.revenue || row.total)}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.gold }}>${row.usGovRev || row.govt}M</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.accent }}>${row.commercial?.toFixed(0)}M</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.textDim }}>{row.govPct ?? Math.round(((row.govt||0)/row.total)*100)}%</td>
-                        <td style={{ padding: "8px 10px", color: yoy == null ? COLORS.textMuted : yoy >= 0 ? COLORS.green : COLORS.pink, fontWeight: 600 }}>{yoy != null ? `${yoy > 0 ? "+" : ""}${yoy}%` : "—"}</td>
-                        {finView === "quarterly"
-                          ? <td style={{ padding: "8px 10px", color: qoq == null ? COLORS.textMuted : qoq >= 0 ? COLORS.green : COLORS.pink }}>{qoq != null ? `${qoq > 0 ? "+" : ""}${qoq}%` : "—"}</td>
-                          : null}
-                        <td style={{ padding: "8px 10px", color: COLORS.textMuted, fontSize: 9, maxWidth: 260 }}>{row.notes || row.source || ""}</td>
+                        <td style={{ padding: "7px 10px", color: isLatest ? COLORS.accent : COLORS.textDim, fontWeight: isLatest ? 700 : 500, position: "sticky", left: 0, background: isLatest ? `${COLORS.accent}08` : COLORS.card, fontSize: 10 }}>
+                          {row.q}{qEv ? <span style={{ color: qEv.color, fontSize: 8, marginLeft: 4 }}>★</span> : null}
+                        </td>
+                        {metaCat.map(m => {
+                          const v = row[m.key];
+                          const isActive = m.key === finPrimary;
+                          return (
+                            <td key={m.key} style={{ padding: "7px 10px", textAlign: "right", color: v == null ? COLORS.border : isActive ? m.color : COLORS.textDim, fontWeight: isActive && v != null ? 700 : 400 }}>
+                              {v == null ? "—" : fmtVal(v, m.fmt)}
+                            </td>
+                          );
+                        })}
+                        <td style={{ padding: "7px 10px", color: COLORS.textMuted, fontSize: 9, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{row.note || ""}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 10 }}>
+              Click any column header to chart it · Click any row to open full quarter detail · ★ = notable Palantir milestone quarter
             </div>
           </div>
         )}
