@@ -1,14 +1,21 @@
 import hashlib
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 
 def scrape():
     url = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+
+    # Only pull awards from the last 24 hours
+    now = datetime.now(timezone.utc)
+    yesterday = (now - timedelta(hours=24)).strftime("%Y-%m-%d")
+    today = now.strftime("%Y-%m-%d")
+
     base_payload = {
         "filters": {
             "recipient_search_text": ["Palantir Technologies"],
             "award_type_codes": ["A", "B", "C", "D"],
+            "time_period": [{"start_date": yesterday, "end_date": today}],
         },
         "fields": [
             "Award ID", "Recipient Name", "Award Amount",
@@ -25,7 +32,7 @@ def scrape():
     all_awards = []
     payload = dict(base_payload)
 
-    for _ in range(20):  # max 20 pages (2000 results)
+    for _ in range(3):  # max 3 pages (300 results) — daily volume won't exceed this
         try:
             resp = requests.post(url, json=payload, timeout=30)
             resp.raise_for_status()
@@ -71,7 +78,7 @@ def scrape():
             },
         })
 
-    print(f"[us_spending] {len(items)} items (full history)")
+    print(f"[us_spending] {len(items)} items (last 24h)")
     return items
 
 

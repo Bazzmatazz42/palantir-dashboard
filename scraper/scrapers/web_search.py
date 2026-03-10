@@ -59,7 +59,7 @@ def scrape(x_accounts):
                 results = ddgs.text(
                     query_config["q"],
                     max_results=8,
-                    timelimit="m",  # last month
+                    timelimit="d",  # last 24 hours
                 )
                 count = 0
                 for r in (results or []):

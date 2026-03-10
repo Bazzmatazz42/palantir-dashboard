@@ -1,10 +1,11 @@
 import hashlib
 import feedparser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 def scrape(feeds):
     items = []
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
 
     for feed_config in feeds:
         name = feed_config["name"]
@@ -21,7 +22,7 @@ def scrape(feeds):
             continue
 
         count = 0
-        for entry in feed.entries[:20]:
+        for entry in feed.entries[:50]:
             title = entry.get("title", "")
             summary = entry.get("summary", "") or entry.get("description", "")
             link = entry.get("link", "")
@@ -34,14 +35,20 @@ def scrape(feeds):
             if must_mention_palantir and "palantir" not in combined_text:
                 continue
 
-            # Parse date
+            # Parse date and enforce 24h cutoff
             date_str = ""
             published = entry.get("published_parsed") or entry.get("updated_parsed")
             if published:
                 try:
-                    date_str = datetime(*published[:6], tzinfo=timezone.utc).strftime("%Y-%m-%d")
+                    pub_dt = datetime(*published[:6], tzinfo=timezone.utc)
+                    if pub_dt < cutoff:
+                        continue
+                    date_str = pub_dt.strftime("%Y-%m-%d")
                 except Exception:
                     pass
+            else:
+                # No date available — skip to avoid flooding inbox with old undated items
+                continue
 
             uid = hashlib.sha256(f"rss-{link}".encode()).hexdigest()[:16]
 
