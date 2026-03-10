@@ -32,7 +32,7 @@ const Stat = ({ label, value, sub, color }) => (
   </div>
 );
 
-const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "PLTR Docs", "Sources", "Inbox"];
+const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "PLTR Docs", "Sources", "KarpTube", "Inbox"];
 
 function PalantirDashboard() {
   const [tab, setTab] = useState("Overview");
@@ -50,6 +50,11 @@ function PalantirDashboard() {
   const [srcType, setSrcType] = useState("All");
   const [srcSort, setSrcSort] = useState("contract");
   const [srcSortDir, setSrcSortDir] = useState("asc");
+
+  // ===== KARPTUBE STATE =====
+  const karpItems = useMemo(() => window.KARPTUBE_ITEMS || [], []);
+  const [ktSearch, setKtSearch] = useState("");
+  const [ktFilter, setKtFilter] = useState("All");
 
   // ===== INBOX STATE =====
   const pendingItems = useMemo(() => window.PENDING_ITEMS || [], []);
@@ -1110,6 +1115,144 @@ function PalantirDashboard() {
     );
   };
 
+  const renderKarpTube = () => {
+    const TYPE_META = {
+      article:       { label: "ARTICLE",       color: COLORS.accent },
+      news:          { label: "NEWS",           color: COLORS.accent },
+      blog:          { label: "BLOG",           color: COLORS.purple },
+      newsletter:    { label: "NEWSLETTER",     color: COLORS.purple },
+      podcast:       { label: "PODCAST",        color: COLORS.gold },
+      video:         { label: "VIDEO",          color: COLORS.pink },
+      x_post:        { label: "X / SOCIAL",     color: COLORS.pink },
+      x_search:      { label: "X / SOCIAL",     color: COLORS.pink },
+      web_search:    { label: "WEB",            color: COLORS.textDim },
+      rss:           { label: "RSS",            color: COLORS.purple },
+      sec_filing:    { label: "SEC FILING",     color: COLORS.gold },
+      press_release: { label: "PRESS RELEASE",  color: COLORS.accent },
+      official:      { label: "OFFICIAL",       color: COLORS.green },
+    };
+
+    const FILTERS = ["All", "article", "news", "blog", "newsletter", "podcast", "video", "x_post", "x_search", "web_search", "rss", "sec_filing", "press_release"];
+
+    const activeTypes = new Set(karpItems.map(i => i.source_type).filter(Boolean));
+    const availableFilters = ["All", ...FILTERS.slice(1).filter(f => activeTypes.has(f))];
+
+    const q = ktSearch.toLowerCase();
+    const visible = karpItems.filter(item => {
+      if (ktFilter !== "All" && item.source_type !== ktFilter) return false;
+      if (q && !((item.title || "").toLowerCase().includes(q)) && !((item.snippet || "").toLowerCase().includes(q)) && !((item.source || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.accent, letterSpacing: 0.5 }}>KarpTube</div>
+            <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 3 }}>
+              All Palantir media · {karpItems.length} items · news, articles, podcasts, videos, newsletters, blogs, social
+            </div>
+          </div>
+          <input
+            placeholder="Search KarpTube..."
+            value={ktSearch}
+            onChange={e => setKtSearch(e.target.value)}
+            style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 13, width: 260, outline: "none" }}
+          />
+        </div>
+
+        {/* Filter chips */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {availableFilters.map(f => {
+            const meta = TYPE_META[f] || {};
+            const active = ktFilter === f;
+            return (
+              <button key={f} onClick={() => setKtFilter(f)} style={{
+                background: active ? (meta.color || COLORS.accent) + "22" : COLORS.card,
+                color: active ? (meta.color || COLORS.accent) : COLORS.textMuted,
+                border: `1px solid ${active ? (meta.color || COLORS.accent) + "66" : COLORS.border}`,
+                borderRadius: 20, padding: "5px 14px", fontSize: 11, fontWeight: 700,
+                cursor: "pointer", letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s",
+              }}>
+                {f === "All" ? `All (${karpItems.length})` : (TYPE_META[f]?.label || f)}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Results count */}
+        {(ktSearch || ktFilter !== "All") && (
+          <div style={{ fontSize: 11, color: COLORS.textMuted }}>
+            {visible.length} result{visible.length !== 1 ? "s" : ""}
+            {ktFilter !== "All" && ` · ${TYPE_META[ktFilter]?.label || ktFilter}`}
+            {ktSearch && ` · "${ktSearch}"`}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {karpItems.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 0", color: COLORS.textMuted }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No content yet</div>
+            <div style={{ fontSize: 13 }}>The KarpTube scraper will populate this feed daily.</div>
+          </div>
+        )}
+
+        {/* Card grid */}
+        {visible.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+            {visible.map(item => {
+              const meta = TYPE_META[item.source_type] || { label: item.source_type?.toUpperCase() || "MEDIA", color: COLORS.textDim };
+              return (
+                <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
+                  style={{ textDecoration: "none", display: "block" }}>
+                  <div style={{
+                    background: COLORS.card, border: `1px solid ${COLORS.border}`,
+                    borderRadius: 10, padding: "14px 16px", height: "100%",
+                    transition: "border-color 0.15s, background 0.15s",
+                    cursor: "pointer", display: "flex", flexDirection: "column", gap: 8,
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = meta.color + "88"; e.currentTarget.style.background = meta.color + "0a"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.card; }}
+                  >
+                    {/* Top row: badge + date */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{
+                        background: meta.color + "22", color: meta.color,
+                        border: `1px solid ${meta.color}44`,
+                        borderRadius: 4, padding: "2px 8px", fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
+                      }}>{meta.label}</span>
+                      {item.date && <span style={{ fontSize: 10, color: COLORS.textMuted }}>{item.date}</span>}
+                    </div>
+
+                    {/* Title */}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, lineHeight: 1.4 }}>
+                      {item.title || "(no title)"}
+                    </div>
+
+                    {/* Snippet */}
+                    {item.snippet && (
+                      <div style={{ fontSize: 11, color: COLORS.textMuted, lineHeight: 1.5, flex: 1,
+                        display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {item.snippet}
+                      </div>
+                    )}
+
+                    {/* Source */}
+                    <div style={{ fontSize: 10, color: COLORS.textDim, marginTop: "auto", paddingTop: 4, borderTop: `1px solid ${COLORS.border}`, letterSpacing: 0.3 }}>
+                      {item.source}
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ===== INBOX TAB =====
   const renderInbox = () => {
     const SOURCE_TYPE_LABELS = {
@@ -1499,6 +1642,7 @@ function PalantirDashboard() {
         {tab === "Run Rate" && renderRunRate()}
         {tab === "PLTR Docs" && renderPalantirDocs()}
         {tab === "Sources" && renderSources()}
+        {tab === "KarpTube" && renderKarpTube()}
         {tab === "Inbox" && renderInbox()}
       </div>
 
