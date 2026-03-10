@@ -1,5 +1,5 @@
 const { useState, useMemo, useCallback } = React;
-const { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, AreaChart, Area } = window.Recharts;
+const { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, AreaChart, Area, ComposedChart, Line, ReferenceLine } = window.Recharts;
 
 const CONTRACTS = window.CONTRACTS;
 const COLORS = window.COLORS;
@@ -222,6 +222,65 @@ function PalantirDashboard() {
     return arr;
   }, []);
 
+  // US Gov vs International by year (stacked bar — Overview)
+  const byYearRegion = useMemo(() => {
+    const map = {};
+    CONTRACTS.forEach(c => {
+      if (!c.year) return;
+      if (!map[c.year]) map[c.year] = { year: c.year, "US Gov": 0, "International": 0, "Commercial": 0 };
+      if (c.country === "United States") map[c.year]["US Gov"] += (c.value || 0);
+      else if (c.region === "North America" || !c.region) map[c.year]["Commercial"] += (c.value || 0);
+      else map[c.year]["International"] += (c.value || 0);
+    });
+    return Object.values(map).sort((a, b) => a.year - b.year);
+  }, []);
+
+  // Contract value size buckets (Deal Flow)
+  const valueBuckets = useMemo(() => {
+    const buckets = [
+      { name: "< $1M",      min: 0,    max: 1,        count: 0 },
+      { name: "$1–10M",     min: 1,    max: 10,       count: 0 },
+      { name: "$10–100M",   min: 10,   max: 100,      count: 0 },
+      { name: "$100M–$1B",  min: 100,  max: 1000,     count: 0 },
+      { name: "> $1B",      min: 1000, max: Infinity,  count: 0 },
+    ];
+    CONTRACTS.forEach(c => {
+      const v = c.value || 0;
+      const b = buckets.find(b => v >= b.min && v < b.max);
+      if (b) b.count++;
+    });
+    return buckets.filter(b => b.count > 0);
+  }, []);
+
+  // Top countries by value (horizontal bar — replaces donut)
+  const topCountries = useMemo(() => {
+    const map = {};
+    CONTRACTS.forEach(c => {
+      map[c.country] = (map[c.country] || 0) + (c.value || 0);
+    });
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15);
+  }, []);
+
+  // Avg and max contract value (stat cards)
+  const avgContractVal = useMemo(() => {
+    const valued = CONTRACTS.filter(c => c.value);
+    return valued.length ? valued.reduce((s, c) => s + c.value, 0) / valued.length : 0;
+  }, []);
+  const maxContract = useMemo(() => CONTRACTS.reduce((m, c) => (c.value || 0) > (m.value || 0) ? c : m, {}), []);
+
+  // Top contracts by run rate for Run Rate tab
+  const topByRunRate = useMemo(() => {
+    return (window.RUN_RATES
+      ? CONTRACTS.filter(c => window.RUN_RATES[c.id])
+          .map(c => ({ name: c.name.length > 30 ? c.name.slice(0, 28) + "\u2026" : c.name, av: window.RUN_RATES[c.id].av, entity: c.entity }))
+          .sort((a, b) => b.av - a.av)
+          .slice(0, 10)
+      : []);
+  }, []);
+
   const byEntity = useMemo(() => {
     const map = {};
     CONTRACTS.forEach(c => {
@@ -264,73 +323,115 @@ function PalantirDashboard() {
   );
 
   // ===== OVERVIEW TAB =====
-  const renderOverview = () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <Stat label="Total Contracts" value={CONTRACTS.length} sub="Since 2005" color={COLORS.accent} />
-        <Stat label="Active Deals" value={activeCount} sub={`${fmt(activeVal)} ceiling`} color={COLORS.green} />
-        <Stat label="Total Ceiling Value" value={fmt(totalVal)} sub="All currencies (USD equiv.)" color={COLORS.gold} />
-        <Stat label="Countries / Orgs" value={countryCount} sub="Including NATO, UN" color={COLORS.purple} />
-        <Stat label="2025 Peak" value="$970.5M" sub="Federal contracts (The Hill)" color={COLORS.pink} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+  const renderOverview = () => {
+    const usGovTotal = CONTRACTS.filter(c => c.country === "United States").reduce((s, c) => s + (c.value || 0), 0);
+    const usGovPct = totalVal > 0 ? ((usGovTotal / totalVal) * 100).toFixed(0) : 0;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Stat cards */}
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <Stat label="Total Contracts" value={CONTRACTS.length} sub="Since 2005" color={COLORS.accent} />
+          <Stat label="Active Deals" value={activeCount} sub={`${fmt(activeVal)} ceiling`} color={COLORS.green} />
+          <Stat label="Total Ceiling Value" value={fmt(totalVal)} sub="All currencies (USD equiv.)" color={COLORS.gold} />
+          <Stat label="US Gov Share" value={`${usGovPct}%`} sub={`${fmt(usGovTotal)} of total`} color={COLORS.purple} />
+          <Stat label="Countries / Orgs" value={countryCount} sub="Including NATO, UN" color={COLORS.pink} />
+          <Stat label="Avg Contract Size" value={fmt(avgContractVal)} sub={`Max: ${fmt(maxContract.value || 0)}`} color={COLORS.accentDim} />
+        </div>
+
+        {/* Row 1 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Sector value */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY SECTOR ($M)</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>{bySector.length} sectors · hover for detail</div>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={bySector} layout="vertical" margin={{ left: 10, right: 50 }}>
+                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={120} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={(v, n, p) => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                  {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top countries — horizontal bar replaces donut */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY COUNTRY ($M)</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Top 15 countries · all time</div>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={topCountries} layout="vertical" margin={{ left: 10, right: 60 }}>
+                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                  {topCountries.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Row 2 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Cumulative + annual */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CUMULATIVE vs ANNUAL CONTRACT VALUE</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Cyan = cumulative · Gold dashed = annual awarded</div>
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={byYear} margin={{ left: 10, right: 20, top: 10 }}>
+                <defs>
+                  <linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.accent} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={COLORS.accent} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
+                <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />
+                <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="none" strokeWidth={2} strokeDasharray="5 5" name="Annual" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* US Gov vs International vs Commercial by year */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>US GOV vs INTERNATIONAL vs COMMERCIAL ($M)</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Annual contract value split by customer type</div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={byYearRegion} margin={{ left: 10, right: 20, top: 10 }} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
+                <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`]} />
+                <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
+                <Bar dataKey="US Gov" stackId="a" fill={COLORS.accent} name="US Gov" />
+                <Bar dataKey="International" stackId="a" fill={COLORS.gold} name="International" />
+                <Bar dataKey="Commercial" stackId="a" fill={COLORS.purple} name="Commercial" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Row 3: Top entities */}
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12, letterSpacing: 0.5 }}>CONTRACT VALUE BY SECTOR ($M)</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={bySector} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} formatter={v => [`$${v.toFixed(0)}M`, "Value"]} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={30}>
-                {bySector.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Bar>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>TOP AWARDING ENTITIES ($M)</div>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Top 12 entities by total contract ceiling value · all time</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={byEntity} layout="vertical" margin={{ left: 10, right: 70 }}>
+              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={160} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={COLORS.accentDim} maxBarSize={26} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12, letterSpacing: 0.5 }}>DISTRIBUTION BY COUNTRY ($M)</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie data={byCountry.filter(c => c.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={45} paddingAngle={2} label={({ name, percent }) => percent > 0.03 ? `${name.slice(0, 12)} ${(percent * 100).toFixed(0)}%` : ""} labelLine={false} style={{ fontSize: 9 }}>
-                {byCountry.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} formatter={v => [`$${v.toFixed(0)}M`]} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12, letterSpacing: 0.5 }}>CUMULATIVE CONTRACT VALUE ($M) \u2014 BY YEAR</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={byYear} margin={{ left: 10, right: 20, top: 10 }}>
-              <defs>
-                <linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.accent} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={COLORS.accent} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-              <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 11 }} axisLine={false} />
-              <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} formatter={v => [`$${v.toFixed(0)}M`]} />
-              <Area type="monotone" dataKey="cumulative" stroke={COLORS.accent} fill="url(#grad1)" strokeWidth={2} name="Cumulative" />
-              <Area type="monotone" dataKey="total" stroke={COLORS.gold} fill="none" strokeWidth={2} strokeDasharray="5 5" name="Annual" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12, letterSpacing: 0.5 }}>TOP AWARDING ENTITIES ($M)</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={byEntity} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={130} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} formatter={v => [`$${v.toFixed(0)}M`, "Value"]} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={COLORS.accentDim} maxBarSize={30} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ===== EXPLORER TAB =====
   const renderExplorer = () => (
@@ -460,6 +561,22 @@ function PalantirDashboard() {
     };
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Summary bar: top 10 countries */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT VALUE BY COUNTRY — TOP 10 ($M)</div>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Total ceiling value all time</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={topCountries.slice(0, 10)} layout="vertical" margin={{ left: 10, right: 60 }}>
+              <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v.toFixed(0)}M`} />
+              <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={110} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`, "Value"]} />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={18} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v.toFixed(0)}M` }}>
+                {topCountries.slice(0, 10).map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
         {/* Sort controls */}
         <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", padding: "12px 16px", background: COLORS.card, borderRadius: 8, border: `1px solid ${COLORS.border}` }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -539,9 +656,9 @@ function PalantirDashboard() {
   const renderDealFlow = () => {
     const byYearCount = byYear.map(d => ({ ...d }));
     const statusData = [
-      { name: "Active", value: CONTRACTS.filter(c => c.status === "Active").length },
-      { name: "Completed", value: CONTRACTS.filter(c => c.status === "Completed").length },
-      { name: "Under Review", value: CONTRACTS.filter(c => c.status === "Under Review").length },
+      { name: "Active",       value: CONTRACTS.filter(c => c.status === "Active").length,       fill: COLORS.green },
+      { name: "Completed",    value: CONTRACTS.filter(c => c.status === "Completed").length,    fill: COLORS.textMuted },
+      { name: "Under Review", value: CONTRACTS.filter(c => c.status === "Under Review").length, fill: COLORS.gold },
     ];
     const procurementData = {};
     CONTRACTS.forEach(c => { procurementData[c.procurement] = (procurementData[c.procurement] || 0) + 1; });
@@ -552,49 +669,88 @@ function PalantirDashboard() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* Row 1: ComposedChart + Status horizontal bar */}
+        <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACTS AWARDED — COUNT & VALUE PER YEAR</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Bars = contract count (left axis) · Line = total value $M (right axis)</div>
+            <ResponsiveContainer width="100%" height={240}>
+              <ComposedChart data={byYearCount} margin={{ left: 0, right: 20, top: 10 }} barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 10 }} axisLine={false} />
+                <YAxis yAxisId="count" orientation="left" tick={{ fill: COLORS.accent, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="value" orientation="right" tick={{ fill: COLORS.gold, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} formatter={(v, n) => n === "Value ($M)" ? [`$${v >= 1000 ? (v/1000).toFixed(2)+"B" : v.toFixed(0)+"M"}`] : [v, n]} />
+                <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
+                <Bar yAxisId="count" dataKey="count" fill={COLORS.accent} radius={[3, 3, 0, 0]} name="# Contracts" maxBarSize={32} opacity={0.85} />
+                <Line yAxisId="value" type="monotone" dataKey="total" stroke={COLORS.gold} strokeWidth={2} dot={{ fill: COLORS.gold, r: 3 }} name="Value ($M)" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>STATUS BREAKDOWN</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 16 }}>{CONTRACTS.length} total contracts</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {statusData.map(s => {
+                const pct = ((s.value / CONTRACTS.length) * 100).toFixed(0);
+                return (
+                  <div key={s.name}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                      <span style={{ fontSize: 11, color: COLORS.textDim, fontWeight: 600 }}>{s.name}</span>
+                      <span style={{ fontSize: 11, color: s.fill, fontWeight: 700 }}>{s.value} <span style={{ color: COLORS.textMuted, fontWeight: 400 }}>({pct}%)</span></span>
+                    </div>
+                    <div style={{ background: COLORS.border, borderRadius: 4, height: 8 }}>
+                      <div style={{ width: `${pct}%`, background: s.fill, borderRadius: 4, height: 8, transition: "width 0.4s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Contract size distribution */}
+            <div style={{ marginTop: 28 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
+              <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>By contract ceiling value</div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={valueBuckets} margin={{ left: 0, right: 10 }} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
+                  <XAxis dataKey="name" tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} />
+                  <YAxis tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} formatter={(v) => [v, "Contracts"]} />
+                  <Bar dataKey="count" radius={[3, 3, 0, 0]} name="Contracts" maxBarSize={36}>
+                    {valueBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Procurement type + Product frequency */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>CONTRACTS AWARDED PER YEAR</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byYearCount} margin={{ left: 0, right: 10 }} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                <XAxis dataKey="year" tick={{ fill: COLORS.textDim, fontSize: 11 }} axisLine={false} />
-                <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                <Bar dataKey="count" fill={COLORS.accent} radius={[4, 4, 0, 0]} name="Contracts" maxBarSize={36} maxBarSize={36} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>STATUS BREAKDOWN</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={40} label={({ name, value }) => `${name}: ${value}`} labelLine={false} style={{ fontSize: 11 }}>
-                  {statusData.map((_, i) => <Cell key={i} fill={[COLORS.green, COLORS.textMuted, COLORS.gold][i]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>PROCUREMENT TYPE DISTRIBUTION</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={procArr} layout="vertical" margin={{ left: 10, right: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Number of contracts by procurement vehicle</div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={procArr} layout="vertical" margin={{ left: 10, right: 40 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={120} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                <Bar dataKey="value" fill={COLORS.purple} radius={[0, 4, 4, 0]} name="Count" maxBarSize={30} />
+                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={130} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
+                <Bar dataKey="value" fill={COLORS.purple} radius={[0, 4, 4, 0]} name="Count" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, marginBottom: 12 }}>PALANTIR PRODUCT FREQUENCY</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PALANTIR PRODUCT FREQUENCY</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Contracts mentioning each product</div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={prodArr} layout="vertical" margin={{ left: 10, right: 40 }}>
                 <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={140} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={30} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [v, "Contracts"]} />
+                <Bar dataKey="value" fill={COLORS.pink} radius={[0, 4, 4, 0]} name="Contracts" maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -665,6 +821,7 @@ function PalantirDashboard() {
               <YAxis tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={{ color: COLORS.text, fontWeight: 600 }} itemStyle={{ color: COLORS.textDim }} formatter={v => [`$${v.toFixed(1)}M`]} />
               <Legend wrapperStyle={{ fontSize: 10, color: COLORS.textDim }} />
+              <ReferenceLine x={2026} stroke={COLORS.gold} strokeDasharray="4 4" label={{ value: "2026", fill: COLORS.gold, fontSize: 10 }} />
               <Area type="monotone" dataKey="defense" stackId="1" stroke="#00e5ff" fill="url(#gDef)" name="Defense" />
               <Area type="monotone" dataKey="homeland" stackId="1" stroke="#f59e0b" fill="url(#gHS)" name="Homeland Security" />
               <Area type="monotone" dataKey="health" stackId="1" stroke="#22c55e" fill="url(#gHL)" name="Health / Veterans" />
@@ -673,6 +830,41 @@ function PalantirDashboard() {
               <Area type="monotone" dataKey="other" stackId="1" stroke="#64748b" fill="#64748b22" name="Other Govt" />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Row 2: Top contracts by run rate + 2026 sector breakdown */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>TOP CONTRACTS BY ANNUAL RUN RATE ($M/yr)</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Estimated annualised spend · ceiling ÷ duration</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={topByRunRate} layout="vertical" margin={{ left: 10, right: 60 }}>
+                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}M`} />
+                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 9 }} width={150} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Annual Run Rate"]} />
+                <Bar dataKey="av" fill={COLORS.accent} radius={[0, 4, 4, 0]} maxBarSize={22} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
+                  {topByRunRate.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>2026 RUN RATE — SECTOR BREAKDOWN ($M/yr)</div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>Estimated annual spend by sector for calendar year 2026</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={Object.entries({ Defense: yearTotals[2026]?.defense || 0, "Homeland Sec.": yearTotals[2026]?.homeland || 0, Health: yearTotals[2026]?.health || 0, Intelligence: yearTotals[2026]?.intel || 0, International: yearTotals[2026]?.intl || 0, Other: yearTotals[2026]?.other || 0 }).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))}
+                layout="vertical" margin={{ left: 10, right: 60 }}>
+                <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}M`} />
+                <YAxis dataKey="name" type="category" tick={{ fill: COLORS.textDim, fontSize: 10 }} width={100} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.text, fontSize: 12 }} formatter={v => [`$${v.toFixed(1)}M/yr`, "Run Rate"]} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28} label={{ position: "right", fontSize: 9, fill: COLORS.textMuted, formatter: v => `$${v.toFixed(0)}M` }}>
+                  {[COLORS.accent, COLORS.gold, COLORS.green, COLORS.purple, COLORS.pink, COLORS.red].map((c, i) => <Cell key={i} fill={c} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
