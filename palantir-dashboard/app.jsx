@@ -102,6 +102,7 @@ function PalantirDashboard() {
 
   // ===== DEAL FLOW STATE =====
   const [procDrill, setProcDrill] = useState(null);
+  const [sizeDrill, setSizeDrill] = useState(null);
 
   // ===== RUN RATE STATE =====
   const [rrSearch, setRrSearch] = useState("");
@@ -283,19 +284,21 @@ function PalantirDashboard() {
     });
   }, [byYearRegion]);
 
-  // Contract value size buckets (Deal Flow)
+  // Contract value size buckets (Deal Flow) — granular with contracts array
   const valueBuckets = useMemo(() => {
     const buckets = [
-      { name: "< $1M",      min: 0,    max: 1,        count: 0 },
-      { name: "$1–10M",     min: 1,    max: 10,       count: 0 },
-      { name: "$10–100M",   min: 10,   max: 100,      count: 0 },
-      { name: "$100M–$1B",  min: 100,  max: 1000,     count: 0 },
-      { name: "> $1B",      min: 1000, max: Infinity,  count: 0 },
+      { name: "< $1M",        min: 0,    max: 1,        count: 0, total: 0, contracts: [] },
+      { name: "$1M–$5M",      min: 1,    max: 5,        count: 0, total: 0, contracts: [] },
+      { name: "$5M–$25M",     min: 5,    max: 25,       count: 0, total: 0, contracts: [] },
+      { name: "$25M–$100M",   min: 25,   max: 100,      count: 0, total: 0, contracts: [] },
+      { name: "$100M–$500M",  min: 100,  max: 500,      count: 0, total: 0, contracts: [] },
+      { name: "$500M–$1B",    min: 500,  max: 1000,     count: 0, total: 0, contracts: [] },
+      { name: "> $1B",        min: 1000, max: Infinity,  count: 0, total: 0, contracts: [] },
     ];
     CONTRACTS.forEach(c => {
       const v = c.value || 0;
       const b = buckets.find(b => v >= b.min && v < b.max);
-      if (b) b.count++;
+      if (b) { b.count++; b.total += v; b.contracts.push(c); }
     });
     return buckets.filter(b => b.count > 0);
   }, []);
@@ -797,18 +800,65 @@ function PalantirDashboard() {
           {/* Col 3: Contract size distribution */}
           <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>CONTRACT SIZE DISTRIBUTION</div>
-            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>By contract ceiling value</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={valueBuckets} margin={{ left: 0, right: 10 }} barCategoryGap="25%">
-                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-                <XAxis dataKey="name" tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} />
-                <YAxis tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM} formatter={(v) => [v, "Contracts"]} />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]} name="Contracts" maxBarSize={42}>
-                  {valueBuckets.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {sizeDrill === null ? (
+              <>
+                <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 12 }}>By contract ceiling value · click a bar to drill down</div>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={valueBuckets} layout="vertical" margin={{ left: 4, right: 48, top: 4, bottom: 4 }} barCategoryGap="20%"
+                    onClick={e => { if (e && e.activePayload && e.activePayload[0]) setSizeDrill(e.activePayload[0].payload.name); }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} horizontal={false} />
+                    <XAxis type="number" tick={{ fill: COLORS.textMuted, fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={84} tick={{ fill: COLORS.textDim, fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: "#182638", border: `1px solid ${COLORS.accentDim}55`, borderRadius: 8, color: COLORS.text, fontSize: 11 }} labelStyle={TT_LABEL} itemStyle={TT_ITEM}
+                      formatter={(v, n, props) => {
+                        const tot = props.payload.total;
+                        return [`${v} contracts · $${tot >= 1000 ? (tot/1000).toFixed(1)+"B" : tot.toFixed(0)+"M"} total`];
+                      }} />
+                    <Bar dataKey="count" radius={[0, 3, 3, 0]} name="Contracts" cursor="pointer"
+                      label={{ position: "right", formatter: (v, entry) => {
+                        const payload = valueBuckets.find(b => b.count === v);
+                        return "";
+                      }, fill: COLORS.textMuted, fontSize: 9 }}>
+                      {valueBuckets.map((b, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
+                  {valueBuckets.map((b, i) => (
+                    <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: COLORS.textMuted }}>
+                      <span style={{ color: PIE_COLORS[i % PIE_COLORS.length], fontWeight: 600 }}>{b.name}</span>
+                      <span>${b.total >= 1000 ? (b.total/1000).toFixed(1)+"B" : b.total.toFixed(0)+"M"} total</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <button onClick={() => setSizeDrill(null)} style={{ background: COLORS.border, border: "none", borderRadius: 6, color: COLORS.text, fontSize: 10, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>← Back</button>
+                  <span style={{ fontSize: 10, color: COLORS.textDim, fontWeight: 600 }}>{sizeDrill}</span>
+                </div>
+                <div style={{ overflowY: "auto", maxHeight: 300, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(valueBuckets.find(b => b.name === sizeDrill) || { contracts: [] }).contracts
+                    .sort((a, b) => (b.value || 0) - (a.value || 0))
+                    .map((c, i) => (
+                      <div key={i} style={{ background: "#0d1520", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "7px 10px" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.text, marginBottom: 2 }}>{c.entity}</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontSize: 9, color: COLORS.textMuted }}>
+                          <span style={{ color: COLORS.gold, fontWeight: 700 }}>${c.value != null ? (c.value >= 1000 ? (c.value/1000).toFixed(2)+"B" : c.value.toFixed(0)+"M") : "N/A"}</span>
+                          <span>{c.year}</span>
+                          <span style={{ color: COLORS.textDim }}>{c.sector}</span>
+                          <span>{c.country}</span>
+                          <span style={{ color: c.status === "Active" ? COLORS.green : c.status === "Awarded" ? COLORS.accent : COLORS.textMuted }}>{c.status}</span>
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </>
+            )}
           </div>
         </div>
 
