@@ -34,6 +34,27 @@ const Stat = ({ label, value, sub, color }) => (
 
 const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "PLTR Docs", "Sources", "KarpTube", "Inbox"];
 
+// Slice-and-dice treemap: returns array of {x,y,w,h,...item} in 0-100 coordinate space
+function computeTreemap(items, x, y, w, h) {
+  if (!items.length) return [];
+  if (items.length === 1) return [{ ...items[0], x, y, w, h }];
+  const total = items.reduce((s, d) => s + d.value, 0);
+  let cum = 0, splitIdx = 1;
+  for (let i = 0; i < items.length - 1; i++) {
+    cum += items[i].value;
+    splitIdx = i + 1;
+    if (cum / total >= 0.5) break;
+  }
+  const first = items.slice(0, splitIdx);
+  const second = items.slice(splitIdx);
+  const r = first.reduce((s, d) => s + d.value, 0) / total;
+  if (w >= h) {
+    return [...computeTreemap(first, x, y, w * r, h), ...computeTreemap(second, x + w * r, y, w * (1 - r), h)];
+  } else {
+    return [...computeTreemap(first, x, y, w, h * r), ...computeTreemap(second, x, y + h * r, w, h * (1 - r))];
+  }
+}
+
 function PalantirDashboard() {
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
@@ -826,31 +847,36 @@ function PalantirDashboard() {
                 );
               })()
             ) : (
-              /* BLOCK VIEW — flex-grow = count, so each block gets exactly count/total of the canvas */
+              /* TREEMAP VIEW — 2D block, area proportional to contract count */
               (() => {
                 const totalProc = procArr.reduce((s, d) => s + d.value, 0);
+                const tmBlocks = computeTreemap(procArr, 0, 0, 100, 100);
                 return (
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 4, letterSpacing: 0.5 }}>PROCUREMENT TYPE</div>
-                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 14 }}>
-                      {totalProc} contracts total · each block's width = its share of all contracts · click to drill in
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 10 }}>
+                      {totalProc} contracts total · block area = share of all contracts · click to drill in
                     </div>
-                    <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", width: "100%", height: 120, gap: 2 }}>
-                      {procArr.map((d, i) => {
+                    <div style={{ position: "relative", width: "100%", height: 260 }}>
+                      {tmBlocks.map((d, i) => {
                         const col = PIE_COLORS[i % PIE_COLORS.length];
                         const pct = ((d.value / totalProc) * 100).toFixed(1);
+                        const tooSmall = d.w < 12 || d.h < 12;
                         return (
                           <div
                             key={i}
                             onClick={() => setProcDrill(d.name)}
                             title={`${d.name || "Unspecified"}: ${d.value} contracts (${pct}%)`}
                             style={{
-                              flex: `${d.value} 0 0px`,
-                              height: "100%",
-                              padding: "8px 6px",
-                              background: `${col}1a`,
+                              position: "absolute",
+                              left: `${d.x}%`,
+                              top: `${d.y}%`,
+                              width: `calc(${d.w}% - 2px)`,
+                              height: `calc(${d.h}% - 2px)`,
+                              background: `${col}18`,
                               border: `1px solid ${col}55`,
                               borderRadius: 4,
+                              padding: tooSmall ? 4 : 10,
                               boxSizing: "border-box",
                               cursor: "pointer",
                               overflow: "hidden",
@@ -860,15 +886,19 @@ function PalantirDashboard() {
                               transition: "background 0.15s, border-color 0.15s",
                             }}
                             onMouseEnter={e => { e.currentTarget.style.background = `${col}35`; e.currentTarget.style.borderColor = col; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = `${col}1a`; e.currentTarget.style.borderColor = `${col}55`; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = `${col}18`; e.currentTarget.style.borderColor = `${col}55`; }}
                           >
-                            <div style={{ fontSize: 22, fontWeight: 800, color: col, lineHeight: 1, flexShrink: 0 }}>{d.value}</div>
-                            <div style={{ fontSize: 8, color: COLORS.textDim, lineHeight: 1.25, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{d.name || "Unspecified"}</div>
+                            {!tooSmall && (
+                              <>
+                                <div style={{ fontSize: Math.max(11, Math.min(26, d.w * 0.9)), fontWeight: 800, color: col, lineHeight: 1 }}>{d.value}</div>
+                                <div style={{ fontSize: Math.max(8, Math.min(11, d.w * 0.4)), color: COLORS.textDim, lineHeight: 1.2, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{d.name || "Unspecified"}<br/><span style={{ color: COLORS.textMuted, fontSize: 8 }}>{pct}%</span></div>
+                              </>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 10 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 8 }}>
                       {procArr.map((d, i) => (
                         <span key={i} style={{ fontSize: 9, color: COLORS.textMuted }}>
                           <span style={{ color: PIE_COLORS[i % PIE_COLORS.length], fontWeight: 700 }}>{d.value}</span> {d.name || "Unspecified"} ({((d.value / totalProc) * 100).toFixed(0)}%)
