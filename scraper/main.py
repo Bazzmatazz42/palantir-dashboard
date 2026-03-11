@@ -84,18 +84,14 @@ def write_karptube_js(items):
 
 
 def write_pending_js(items):
-    # Only keep items that have Palantir/PLTR mention OR are sec_edgar (auto-pass)
+    # Inbox only contains official source types: sec_edgar, palantir_ir.
+    # Strip any legacy items from social/RSS/news that snuck in previously.
+    OFFICIAL_TYPES = {"sec_edgar", "palantir_ir"}
     clean = []
     for item in items:
         src_type = item.get("source_type", "")
-        if src_type == "sec_edgar":
+        if src_type in OFFICIAL_TYPES and "screen_score" in item:
             clean.append(item)
-            continue
-        text = (item.get("title", "") + " " + item.get("snippet", "")).lower()
-        if "palantir" in text or "pltr" in text:
-            # Also require a screen_score (discard pre-screener legacy items)
-            if "screen_score" in item:
-                clean.append(item)
 
     ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     json_str = json.dumps(clean, indent=2, ensure_ascii=False)
@@ -302,16 +298,26 @@ def run():
     new_inbox = []
     new_karptube = []
 
+    # Only these official source types can reach the Inbox.
+    # RSS, web_search, x_search, news → KarpTube only, never Inbox.
+    INBOX_ELIGIBLE_TYPES = {"sec_edgar", "palantir_ir"}
+
     for item in all_items:
         if not item.get("id") or not item.get("url"):
             continue
         if item["id"] in seen_ids:
             continue
-        # Skip contract_api — already handled above
+        # contract_api already handled via auto_merge_contracts above
         if item.get("source_type") == "contract_api":
             continue
 
-        should_inbox, score, reason = is_inbox_item(item)
+        src_type = item.get("source_type", "")
+        if src_type in INBOX_ELIGIBLE_TYPES:
+            should_inbox, score, reason = is_inbox_item(item)
+        else:
+            # Media / social / RSS — KarpTube only, never Inbox
+            should_inbox, score, reason = False, 0, "media source — KarpTube only"
+
         item["screen_score"] = score
         item["screen_reason"] = reason
         seen_ids.add(item["id"])
@@ -340,7 +346,7 @@ def run():
         key=lambda x: x.get("date", "") or x.get("scraped_at", ""),
         reverse=True,
     )
-    merged_karptube = merged_karptube[:1000]
+    merged_karptube = merged_karptube[:5000]
     write_karptube_js(merged_karptube)
     print(f"[main] KarpTube: {len(merged_karptube)} total ({len(new_karptube)} new)")
 

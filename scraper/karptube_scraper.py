@@ -222,10 +222,10 @@ def run():
 
     print(f"\n[karptube] {len(new_items)} new items (from {len(all_items)} scraped)")
 
-    # Newest first, rolling 1000-item window
+    # Newest first; 5000-item cap to preserve historical preload content
     merged = new_items + existing
     merged.sort(key=lambda x: x.get("date", "") or x.get("scraped_at", ""), reverse=True)
-    merged = merged[:1000]
+    merged = merged[:5000]
 
     write_output(merged)
     save_seen(seen)
