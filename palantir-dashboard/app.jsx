@@ -160,6 +160,12 @@ function PalantirDashboard() {
   const [fhCommitting, setFhCommitting] = useState(false);
   const [fhCommitStatus, setFhCommitStatus] = useState("");
 
+  // ===== GLOBAL PULL STATE =====
+  const [globalPulling, setGlobalPulling] = useState(false);
+  const [globalPullStatus, setGlobalPullStatus] = useState("");
+  const [globalPullRunId, setGlobalPullRunId] = useState(null);
+  const globalPollRef = React.useRef(null);
+
   // ===== INBOX STATE =====
   const pendingItems = useMemo(() => window.PENDING_ITEMS || [], []);
   const [approved, setApproved] = useState(() => {
@@ -177,6 +183,8 @@ function PalantirDashboard() {
   const [byCountryContractSort, setByCountryContractSort] = useState("value");
   const [exportModal, setExportModal] = useState(false);
   const [exportCode, setExportCode] = useState("");
+  const [inboxMerging, setInboxMerging] = useState(false);
+  const [inboxMergeStatus, setInboxMergeStatus] = useState("");
   const [sourcesSort, setSourcesSort] = useState("type");
   const [sourcesCatFilter, setSourcesCatFilter] = useState("All");
 
@@ -271,6 +279,59 @@ function PalantirDashboard() {
     setExportCode(header + entries.join(",\n\n"));
     setExportModal(true);
   }, [pendingItems, approved]);
+
+  const handleMergeAndCommit = useCallback(async () => {
+    const token = fhGhToken;
+    if (!token) { setInboxMergeStatus("No GitHub token — set it in Feed Hub tab"); setTimeout(() => setInboxMergeStatus(""), 5000); return; }
+    const approvedContracts = pendingItems.filter(i => approved.has(i.id) && i.source_type === "contract_api" && i.contract_data);
+    if (!approvedContracts.length) return;
+
+    setInboxMerging(true);
+    setInboxMergeStatus("Fetching data.js from GitHub...");
+    const REGION_MAP = { "United States": "North America", "Canada": "North America", "United Kingdom": "Europe", "Germany": "Europe", "France": "Europe", "Netherlands": "Europe", "Poland": "Europe", "Romania": "Europe", "Ukraine": "Europe", "Australia": "Oceania", "New Zealand": "Oceania", "Japan": "Asia Pacific", "South Korea": "Asia Pacific", "Singapore": "Asia Pacific", "Israel": "Middle East", "UAE": "Middle East", "Saudi Arabia": "Middle East" };
+    const esc = s => (s || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+    try {
+      const headers = { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json" };
+      const fileR = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/contents/palantir-dashboard/data.js", { headers });
+      const fileData = await fileR.json();
+      if (!fileData.sha) throw new Error("Could not get data.js — check token permissions");
+
+      const existingContent = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ""))));
+      const maxId = Math.max(...(existingContent.match(/id:\s*(\d+)/g) || []).map(m => parseInt(m.replace(/\D/g, ""))), 0);
+
+      setInboxMergeStatus(`Appending ${approvedContracts.length} contract(s)...`);
+      const newEntries = approvedContracts.map((item, idx) => {
+        const cd = item.contract_data;
+        const id = maxId + idx + 1;
+        const region = REGION_MAP[cd.country] || "Other";
+        return `  { id: ${id}, name: "${esc(item.title)}", entity: "${esc(cd.entity)}", country: "${esc(cd.country)}", region: "${region}",\n    sector: "Defense", sub: "", product: "", value: ${cd.value != null ? cd.value : "null"}, currency: "${cd.currency || "USD"}",\n    year: ${cd.year || "null"}, quarter: "", status: "Active", statusDetail: "", procurement: "",\n    source: "${esc(item.source)}", url: "${esc(item.url)}", docs: [\n    { label: "${esc(item.source)} \u2014 ${esc(item.title)}", url: "${esc(item.url)}", type: "fed_record" },\n  ]}`;
+      }).join(",\n\n");
+
+      // Inject before the closing ]; of window.CONTRACTS
+      const updated = existingContent.replace(/(\n\];\s*(?:\/\/[^\n]*)?\s*$)/, `,\n\n${newEntries}$1`);
+      if (updated === existingContent) throw new Error("Could not find insertion point in data.js — file format may have changed");
+
+      setInboxMergeStatus("Committing to GitHub...");
+      const commitR = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/contents/palantir-dashboard/data.js", {
+        method: "PUT", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: `feat: merge ${approvedContracts.length} approved contract(s) from Inbox`, content: btoa(unescape(encodeURIComponent(updated))), sha: fileData.sha })
+      });
+      if (!commitR.ok) { const e = await commitR.json(); throw new Error(e.message || `GitHub ${commitR.status}`); }
+
+      // Clear approved items that were merged
+      const mergedIds = new Set(approvedContracts.map(i => i.id));
+      const nextApproved = new Set([...approved].filter(id => !mergedIds.has(id)));
+      setApproved(nextApproved);
+      localStorage.setItem("pltr_approved", JSON.stringify([...nextApproved]));
+
+      setInboxMergeStatus(`Merged ${approvedContracts.length} contract(s) — reload page to see them in Explorer`);
+    } catch (e) {
+      setInboxMergeStatus(`Error: ${e.message}`);
+    }
+    setInboxMerging(false);
+    setTimeout(() => setInboxMergeStatus(""), 12000);
+  }, [pendingItems, approved, fhGhToken]);
 
   // ===== SHARED MEDIA TYPE TAXONOMY =====
   // Single source of truth — used by KarpTube AND Inbox so colors never diverge.
@@ -3039,16 +3100,44 @@ function PalantirDashboard() {
             {(() => {
               const hasExportable = pendingItems.some(i => approved.has(i.id) && i.source_type === "contract_api" && i.contract_data);
               return (
-                <button onClick={hasExportable ? handleExportApproved : undefined} style={{
-                  padding: "6px 14px", background: hasExportable ? `${COLORS.green}1a` : "transparent",
-                  color: hasExportable ? COLORS.green : COLORS.textMuted,
-                  border: `1px solid ${hasExportable ? COLORS.green + "44" : COLORS.border}`,
-                  borderRadius: 6, fontSize: 11, fontWeight: 700,
-                  cursor: hasExportable ? "pointer" : "default",
-                  letterSpacing: 0.3, whiteSpace: "nowrap", opacity: hasExportable ? 1 : 0.45,
-                }} title={hasExportable ? "Export approved contract records to data.js format" : "Approve contract_api items to enable export"}>
-                  &#8659; Export Approved
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={hasExportable ? handleExportApproved : undefined} style={{
+                      padding: "6px 14px", background: hasExportable ? `${COLORS.green}1a` : "transparent",
+                      color: hasExportable ? COLORS.green : COLORS.textMuted,
+                      border: `1px solid ${hasExportable ? COLORS.green + "44" : COLORS.border}`,
+                      borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      cursor: hasExportable ? "pointer" : "default",
+                      letterSpacing: 0.3, whiteSpace: "nowrap", opacity: hasExportable ? 1 : 0.45,
+                    }} title="Export approved contracts as JS snippet (manual paste)">
+                      &#8659; Export
+                    </button>
+                    <button
+                      onClick={hasExportable && !inboxMerging ? handleMergeAndCommit : undefined}
+                      disabled={!hasExportable || inboxMerging}
+                      style={{
+                        padding: "6px 14px",
+                        background: hasExportable && !inboxMerging ? `${COLORS.accent}1a` : "transparent",
+                        color: hasExportable && !inboxMerging ? COLORS.accent : COLORS.textMuted,
+                        border: `1px solid ${hasExportable && !inboxMerging ? COLORS.accent + "44" : COLORS.border}`,
+                        borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        cursor: hasExportable && !inboxMerging ? "pointer" : "default",
+                        letterSpacing: 0.3, whiteSpace: "nowrap", opacity: hasExportable ? 1 : 0.45,
+                      }}
+                      title={fhGhToken ? "Merge approved contracts directly into data.js via GitHub API" : "Set GitHub token in Feed Hub to enable direct merge"}
+                    >
+                      {inboxMerging ? "Merging..." : "Merge & Commit"}
+                    </button>
+                  </div>
+                  {inboxMergeStatus && (
+                    <div style={{ fontSize: 10, color: inboxMerging ? COLORS.accent : COLORS.textMuted, textAlign: "right", maxWidth: 280 }}>
+                      {inboxMergeStatus}
+                      {inboxMergeStatus.includes("reload") && (
+                        <span onClick={() => window.location.reload()} style={{ marginLeft: 6, color: COLORS.accent, cursor: "pointer", fontWeight: 700, textDecoration: "underline" }}>Reload</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })()}
           </div>
@@ -3330,6 +3419,63 @@ function PalantirDashboard() {
     );
   };
 
+  // ===== GLOBAL PULL =====
+  const globalPull = async () => {
+    if (globalPulling) return;
+    const token = fhGhToken;
+    if (!token) {
+      setGlobalPullStatus("No GitHub token — set it in the Feed Hub tab first");
+      setTimeout(() => setGlobalPullStatus(""), 5000);
+      return;
+    }
+    setGlobalPulling(true);
+    setGlobalPullStatus("Triggering full scraper run...");
+    try {
+      const headers = { Authorization: `token ${token}`, Accept: "application/vnd.github.v3+json", "Content-Type": "application/json" };
+      const r = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/actions/workflows/daily_scrape.yml/dispatches", {
+        method: "POST", headers, body: JSON.stringify({ ref: "main" })
+      });
+      if (!r.ok) throw new Error(`GitHub API ${r.status} — check token has workflow scope`);
+      setGlobalPullStatus("Scraper triggered — starting...");
+      await new Promise(res => setTimeout(res, 5000)); // give Actions time to register the run
+      let pollCount = 0;
+      globalPollRef.current = setInterval(async () => {
+        pollCount++;
+        try {
+          const runsR = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/actions/runs?per_page=5&event=workflow_dispatch", { headers });
+          const runsData = await runsR.json();
+          const run = runsData.workflow_runs?.[0];
+          if (!run) return;
+          if (run.status === "queued")      setGlobalPullStatus("Queued...");
+          else if (run.status === "in_progress") {
+            const secs = Math.round((Date.now() - new Date(run.created_at)) / 1000);
+            setGlobalPullStatus(`Scraping all sources... ${secs}s`);
+          } else if (run.status === "completed") {
+            clearInterval(globalPollRef.current);
+            setGlobalPulling(false);
+            if (run.conclusion === "success") {
+              setGlobalPullStatus("Done — reload page to see fresh data");
+            } else {
+              setGlobalPullStatus(`Completed: ${run.conclusion} — check Actions log`);
+            }
+            setTimeout(() => setGlobalPullStatus(""), 12000);
+          }
+          if (pollCount > 48) { // 12 min hard timeout
+            clearInterval(globalPollRef.current);
+            setGlobalPulling(false);
+            setGlobalPullStatus("Timed out — check GitHub Actions tab");
+          }
+        } catch (_) {}
+      }, 15000);
+    } catch (e) {
+      setGlobalPulling(false);
+      setGlobalPullStatus(`Error: ${e.message}`);
+      setTimeout(() => setGlobalPullStatus(""), 8000);
+    }
+  };
+
+  React.useEffect(() => () => { if (globalPollRef.current) clearInterval(globalPollRef.current); }, []);
+
   // ===== MAIN RENDER =====
   return (
     <div style={{ background: COLORS.bg, color: COLORS.text, minHeight: "100vh", fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif", padding: 0 }}>
@@ -3343,9 +3489,40 @@ function PalantirDashboard() {
             </div>
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 4, letterSpacing: 0.5 }}>Comprehensive database \u00b7 {CONTRACTS.length} contracts \u00b7 2005\u20132026 \u00b7 All sources cited \u00b7 Click any contract for official documentation</div>
           </div>
-          <div style={{ fontSize: 10, color: COLORS.textMuted, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
-            <div>DATA AS OF MAR 2026</div>
-            <div style={{ color: COLORS.accent }}>CWC ADVISORS</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {/* Global Pull button — triggers full pipeline across all circles */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <button
+                onClick={globalPull}
+                disabled={globalPulling}
+                title={fhGhToken ? "Trigger full scraper run — all sources, all circles" : "Set GitHub token in Feed Hub to enable"}
+                style={{
+                  background: globalPulling ? COLORS.card : COLORS.accent + "18",
+                  color: globalPulling ? COLORS.textMuted : COLORS.accent,
+                  border: `1px solid ${globalPulling ? COLORS.border : COLORS.accent + "55"}`,
+                  borderRadius: 7, padding: "5px 14px", fontSize: 11, fontWeight: 700,
+                  cursor: globalPulling || !fhGhToken ? "not-allowed" : "pointer",
+                  letterSpacing: 0.5, transition: "all 0.15s", whiteSpace: "nowrap",
+                  opacity: !fhGhToken ? 0.45 : 1,
+                }}
+              >
+                {globalPulling ? "Pulling..." : "Global Pull"}
+              </button>
+              {globalPullStatus && (
+                <div style={{ fontSize: 10, color: globalPulling ? COLORS.accent : COLORS.textMuted, maxWidth: 220, textAlign: "right", lineHeight: 1.4 }}>
+                  {globalPullStatus}
+                  {globalPullStatus.includes("reload") && (
+                    <span onClick={() => window.location.reload()} style={{ marginLeft: 6, color: COLORS.accent, cursor: "pointer", fontWeight: 700, textDecoration: "underline" }}>
+                      Reload
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: COLORS.textMuted, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
+              <div>DATA AS OF MAR 2026</div>
+              <div style={{ color: COLORS.accent }}>CWC ADVISORS</div>
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, borderBottom: `1px solid ${COLORS.border}` }}>

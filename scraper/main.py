@@ -136,7 +136,11 @@ def run():
         print(f"[main] Web search scraper failed: {e}")
 
     # --- Screen & route ---
-    print("\n=== Screening ===")
+    # Architecture: KarpTube = universal feed (everything lands here).
+    # Screener is an ELEVATOR, not a gatekeeper — it identifies items that
+    # ALSO deserve to appear in Inbox (deal/contract signals) or Financials
+    # (earnings signals). Routing is additive, never exclusive.
+    print("\n=== Screening & Routing ===")
 
     existing_pending = load_existing_pending()
     existing_pending_ids = {item["id"] for item in existing_pending}
@@ -158,30 +162,33 @@ def run():
         item["screen_reason"] = reason
         seen_ids.add(item["id"])
 
+        # ── Circle 1: KarpTube (universal — everything lands here) ──────────
+        if item["id"] not in existing_karptube_ids:
+            new_karptube.append(item)
+            existing_karptube_ids.add(item["id"])  # prevent double-add within run
+
+        # ── Circle 2: Inbox (elevation — deal/contract items ALSO go here) ──
         if should_inbox:
             if item["id"] not in existing_pending_ids:
                 new_inbox.append(item)
-        else:
-            if item["id"] not in existing_karptube_ids:
-                new_karptube.append(item)
 
-    print(f"[main] {len(new_inbox)} → Inbox, {len(new_karptube)} → KarpTube "
-          f"(from {len(all_items)} scraped)")
+    print(f"[main] {len(new_karptube)} → KarpTube (all), "
+          f"{len(new_inbox)} → Inbox (elevated deal items), "
+          f"from {len(all_items)} scraped")
 
-    # Write pending.js (Inbox)
+    # Write pending.js (Inbox — deal-elevated items only)
     merged_pending = (new_inbox + existing_pending)[:500]
     write_pending_js(merged_pending)
 
-    # Append overflow to karptube.js
-    if new_karptube:
-        merged_karptube = new_karptube + existing_karptube
-        merged_karptube.sort(
-            key=lambda x: x.get("date", "") or x.get("scraped_at", ""),
-            reverse=True,
-        )
-        merged_karptube = merged_karptube[:1000]
-        write_karptube_js(merged_karptube)
-        print(f"[main] KarpTube updated: {len(new_karptube)} new items added")
+    # Write karptube.js (everything)
+    merged_karptube = new_karptube + existing_karptube
+    merged_karptube.sort(
+        key=lambda x: x.get("date", "") or x.get("scraped_at", ""),
+        reverse=True,
+    )
+    merged_karptube = merged_karptube[:1000]
+    write_karptube_js(merged_karptube)
+    print(f"[main] KarpTube: {len(merged_karptube)} total ({len(new_karptube)} new)")
 
     save_seen_ids(seen_ids)
 
