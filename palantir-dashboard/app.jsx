@@ -119,14 +119,19 @@ function PalantirDashboard() {
   const [finCompare, setFinCompare] = useState("null");
   const [finRange, setFinRange] = useState("all");
   const [finChartType, setFinChartType] = useState("bar");
+  const [finShowEvents, setFinShowEvents] = useState(true);
   const [finMetric, setFinMetric] = useState("revenue"); // legacy, kept for compat
 
   // ===== KARPTUBE STATE =====
-  const karpItems = useMemo(() => window.KARPTUBE_ITEMS || [], []);
+  const [karpItems, setKarpItems] = useState(() => window.KARPTUBE_ITEMS || []);
   const [ktSearch, setKtSearch] = useState("");
   const [ktFilter, setKtFilter] = useState("All");
   const [ktSource, setKtSource] = useState("All");
   const [ktSort, setKtSort] = useState("date_desc");
+  const [ktFetching, setKtFetching] = useState(false);
+  const [ktLastPulled, setKtLastPulled] = useState(null);
+  const [ktLiveCount, setKtLiveCount] = useState(0);
+  const [ktFetchStatus, setKtFetchStatus] = useState(""); // per-feed progress message
 
   // ===== INBOX STATE =====
   const pendingItems = useMemo(() => window.PENDING_ITEMS || [], []);
@@ -2297,6 +2302,98 @@ function PalantirDashboard() {
     );
   };
 
+  // ─── KarpTube live feed definitions ────────────────────────────────────────
+  const KT_LIVE_FEEDS = [
+    { name: "Google News — Palantir",  url: "https://news.google.com/rss/search?q=palantir&hl=en-US&gl=US&ceid=US:en", filter: false },
+    { name: "Breaking Defense",        url: "https://breakingdefense.com/feed/",                    filter: true },
+    { name: "Defense One",             url: "https://www.defenseone.com/rss/all/",                  filter: true },
+    { name: "C4ISRNET",                url: "https://www.c4isrnet.com/arc/outboundfeeds/rss/",      filter: true },
+    { name: "FedScoop",                url: "https://fedscoop.com/feed/",                           filter: true },
+    { name: "War on the Rocks",        url: "https://warontherocks.com/feed/",                      filter: true },
+    { name: "Palantir (Medium)",       url: "https://medium.com/feed/palantir",                     filter: false },
+    { name: "r/palantir",              url: "https://www.reddit.com/r/palantir/.rss",                filter: false },
+    { name: "r/PLTR",                  url: "https://www.reddit.com/r/PLTR/.rss",                   filter: false },
+    { name: "First Breakfast",         url: "https://firstbreakfast.substack.com/feed",             filter: true },
+    { name: "Amit Kukreja",            url: "https://amitsdeepdives.substack.com/feed",             filter: true },
+    { name: "Arny Trezzi",             url: "https://arnytrezzi.substack.com/feed",                 filter: true },
+    { name: "Shyam Sankar",            url: "https://shyamsankar.com/feed",                         filter: false },
+    { name: "Crossing the Valley",     url: "https://crossingthevalley.substack.com/feed",          filter: true },
+    { name: "Palantir Tech (YouTube)", url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCXDlpGEFdP4i_JBDpQoAOyg", filter: false },
+  ];
+
+  const ktParseRSS = (xmlText, sourceName, filterPalantir) => {
+    try {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, "text/xml");
+      const nodes = [...xml.querySelectorAll("item"), ...xml.querySelectorAll("entry")];
+      const items = [];
+      for (const node of nodes) {
+        const title   = node.querySelector("title")?.textContent?.trim() || "";
+        const rawLink = node.querySelector("link")?.textContent?.trim()
+                     || node.querySelector("link")?.getAttribute("href")?.trim() || "";
+        const link    = rawLink.startsWith("http") ? rawLink : "";
+        const desc    = node.querySelector("description")?.textContent
+                     || node.querySelector("summary")?.textContent || "";
+        const pubDate = node.querySelector("pubDate")?.textContent
+                     || node.querySelector("published")?.textContent || "";
+        if (!link) continue;
+        const combined = (title + " " + desc).toLowerCase();
+        if (filterPalantir && !combined.includes("palantir")) continue;
+        const dateStr = pubDate
+          ? (() => { try { return new Date(pubDate).toISOString().slice(0, 10); } catch { return ""; } })()
+          : new Date().toISOString().slice(0, 10);
+        const uid = "live-" + btoa(encodeURIComponent(link)).replace(/[+/=]/g, "").slice(0, 18);
+        const snippet = desc.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim().slice(0, 400);
+        items.push({ id: uid, source: sourceName, source_type: "news", title: title.slice(0, 160),
+          snippet, url: link, date: dateStr, scraped_at: new Date().toISOString(), live: true });
+      }
+      return items;
+    } catch (e) { return []; }
+  };
+
+  const ktFetchLive = async () => {
+    if (ktFetching) return;
+    setKtFetching(true);
+    setKtLiveCount(0);
+    setKtFetchStatus("Connecting...");
+    const PROXY = "https://api.allorigins.win/get?url=";
+    const existingIds = new Set(karpItems.map(i => i.id));
+    let totalNew = 0;
+    for (const feed of KT_LIVE_FEEDS) {
+      setKtFetchStatus(`Fetching ${feed.name}...`);
+      try {
+        const res = await fetch(PROXY + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(9000) });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const parsed = ktParseRSS(data.contents || "", feed.name, feed.filter);
+        const fresh = parsed.filter(i => !existingIds.has(i.id));
+        if (fresh.length > 0) {
+          fresh.forEach(i => existingIds.add(i.id));
+          totalNew += fresh.length;
+          setKtLiveCount(n => n + fresh.length);
+          setKarpItems(prev => {
+            const merged = [...fresh, ...prev];
+            merged.sort((a, b) => (b.date || b.scraped_at || "").localeCompare(a.date || a.scraped_at || ""));
+            return merged.slice(0, 1500);
+          });
+        }
+      } catch (e) { /* silently skip failed feeds */ }
+    }
+    setKtLastPulled(new Date());
+    setKtFetching(false);
+    setKtFetchStatus(totalNew > 0 ? `Done — ${totalNew} new item${totalNew !== 1 ? "s" : ""} added` : "Done — feed is up to date");
+    setTimeout(() => setKtFetchStatus(""), 6000);
+  };
+
+  // Auto-pull once when KarpTube tab is first opened
+  const ktAutoFetched = React.useRef(false);
+  React.useEffect(() => {
+    if (tab === "KarpTube" && !ktAutoFetched.current) {
+      ktAutoFetched.current = true;
+      ktFetchLive();
+    }
+  }, [tab]);
+
   const renderKarpTube = () => {
     const TYPE_ORDER = ["All", "news", "article", "press_release", "rss", "newsletter", "blog", "podcast", "video", "x_search", "x_post", "web_search", "sec_filing", "contract_api", "official"];
 
@@ -2334,19 +2431,56 @@ function PalantirDashboard() {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
         {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.accent, letterSpacing: 0.5 }}>KarpTube</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.accent, letterSpacing: 0.5 }}>KarpTube</div>
+              {ktLiveCount > 0 && !ktFetching && (
+                <span style={{ background: COLORS.accent + "22", color: COLORS.accent, fontSize: 10, fontWeight: 700,
+                  padding: "2px 8px", borderRadius: 20, letterSpacing: 0.5 }}>
+                  +{ktLiveCount} LIVE
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>
               {karpItems.length} items · news, articles, podcasts, videos, newsletters, blogs, social
+              {ktLastPulled && (
+                <span style={{ marginLeft: 8, opacity: 0.6 }}>
+                  · last pulled {Math.round((Date.now() - ktLastPulled) / 60000)} min ago
+                </span>
+              )}
             </div>
+            {(ktFetching || ktFetchStatus) && (
+              <div style={{ fontSize: 11, color: ktFetching ? COLORS.accent : COLORS.textMuted, marginTop: 4,
+                display: "flex", alignItems: "center", gap: 6 }}>
+                {ktFetching && (
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                    background: COLORS.accent, animation: "pulse 1s infinite" }} />
+                )}
+                {ktFetchStatus}
+              </div>
+            )}
           </div>
-          <input
-            placeholder="Search KarpTube..."
-            value={ktSearch}
-            onChange={e => setKtSearch(e.target.value)}
-            style={{ ...selectStyle, borderRadius: 8, padding: "7px 14px", fontSize: 12, width: 240 }}
-          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={ktFetchLive}
+              disabled={ktFetching}
+              style={{ background: ktFetching ? COLORS.card : COLORS.accent + "22",
+                color: ktFetching ? COLORS.textMuted : COLORS.accent,
+                border: `1px solid ${ktFetching ? COLORS.border : COLORS.accent + "55"}`,
+                borderRadius: 8, padding: "7px 16px", fontSize: 12, fontWeight: 700,
+                cursor: ktFetching ? "not-allowed" : "pointer", letterSpacing: 0.5,
+                transition: "all 0.15s", whiteSpace: "nowrap" }}
+            >
+              {ktFetching ? "Pulling..." : "Pull Latest"}
+            </button>
+            <input
+              placeholder="Search KarpTube..."
+              value={ktSearch}
+              onChange={e => setKtSearch(e.target.value)}
+              style={{ ...selectStyle, borderRadius: 8, padding: "7px 14px", fontSize: 12, width: 220 }}
+            />
+          </div>
         </div>
 
         {/* Controls row: type chips + source + sort */}
@@ -2396,10 +2530,16 @@ function PalantirDashboard() {
         </div>
 
         {/* Empty state */}
-        {karpItems.length === 0 && (
+        {karpItems.length === 0 && !ktFetching && (
           <div style={{ textAlign: "center", padding: "60px 0", color: COLORS.textMuted }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No content yet</div>
-            <div style={{ fontSize: 12 }}>The KarpTube scraper will populate this feed daily.</div>
+            <div style={{ fontSize: 12 }}>Click <strong>Pull Latest</strong> to fetch live Palantir news from all sources.</div>
+          </div>
+        )}
+        {karpItems.length === 0 && ktFetching && (
+          <div style={{ textAlign: "center", padding: "60px 0", color: COLORS.textMuted }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: COLORS.accent }}>Fetching live feeds...</div>
+            <div style={{ fontSize: 12 }}>{ktFetchStatus}</div>
           </div>
         )}
 
