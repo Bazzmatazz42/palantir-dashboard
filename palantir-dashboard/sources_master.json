@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-03-11T00:00:00Z",
+  "updated": "2026-03-11T12:14:38.807701+00:00",
   "sources": [
     {
       "id": "src_001",
@@ -17,10 +17,18 @@
       "category": "official",
       "tier": 1,
       "description": "US federal contract awards via USASpending.gov API",
-      "tags": ["contract", "us_government"],
+      "tags": [
+        "contract",
+        "us_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 380, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 380,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_002",
@@ -37,10 +45,18 @@
       "category": "official",
       "tier": 1,
       "description": "UK government contract awards via Contracts Finder",
-      "tags": ["contract", "uk_government"],
+      "tags": [
+        "contract",
+        "uk_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_003",
@@ -57,10 +73,18 @@
       "category": "official",
       "tier": 1,
       "description": "EU Tenders Electronic Daily contract awards",
-      "tags": ["contract", "eu_government"],
+      "tags": [
+        "contract",
+        "eu_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_004",
@@ -77,10 +101,18 @@
       "category": "official",
       "tier": 1,
       "description": "Canadian government procurement via CanadaBuys",
-      "tags": ["contract", "canada_government"],
+      "tags": [
+        "contract",
+        "canada_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_005",
@@ -97,10 +129,18 @@
       "category": "official",
       "tier": 1,
       "description": "Australian government procurement via AusTender",
-      "tags": ["contract", "australia_government"],
+      "tags": [
+        "contract",
+        "australia_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_006",
@@ -117,10 +157,18 @@
       "category": "official",
       "tier": 1,
       "description": "Ukrainian government procurement via Prozorro",
-      "tags": ["contract", "ukraine_government"],
+      "tags": [
+        "contract",
+        "ukraine_government"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_010",
@@ -137,10 +185,19 @@
       "category": "official",
       "tier": 1,
       "description": "Palantir 8-K filings, CIK 0001321655",
-      "tags": ["sec", "filing", "disclosure"],
+      "tags": [
+        "sec",
+        "filing",
+        "disclosure"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_011",
@@ -157,10 +214,18 @@
       "category": "official",
       "tier": 1,
       "description": "Palantir investor relations press releases",
-      "tags": ["ir", "press_release"],
+      "tags": [
+        "ir",
+        "press_release"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_101",
@@ -177,10 +242,18 @@
       "category": "news",
       "tier": 1,
       "description": "Google News RSS feed filtered for Palantir",
-      "tags": ["news", "rss"],
+      "tags": [
+        "news",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_102",
@@ -188,7 +261,7 @@
       "type": "rss",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://breakingdefense.com/feed/",
       "handle": null,
       "channel_id": null,
@@ -197,10 +270,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Breaking Defense defense technology news",
-      "tags": ["defense", "rss"],
-      "note": "",
+      "tags": [
+        "defense",
+        "rss"
+      ],
+      "note": "RSS feed returns 403 as of 2026-03 — Breaking Defense blocks all feed scrapers. Covered by DDG news query.",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_103",
@@ -217,10 +298,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Defense One defense and national security news",
-      "tags": ["defense", "rss"],
+      "tags": [
+        "defense",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_104",
@@ -237,10 +326,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "C4ISRNET command, control, communications, computers, intelligence coverage",
-      "tags": ["defense", "rss"],
+      "tags": [
+        "defense",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_105",
@@ -257,10 +354,18 @@
       "category": "media",
       "tier": 1,
       "description": "FedScoop federal technology news",
-      "tags": ["govtech", "rss"],
+      "tags": [
+        "govtech",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_106",
@@ -277,10 +382,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "War on the Rocks national security analysis",
-      "tags": ["defense", "rss"],
+      "tags": [
+        "defense",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_107",
@@ -288,7 +401,7 @@
       "type": "rss",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://www.theinformation.com/feed",
       "handle": null,
       "channel_id": null,
@@ -297,10 +410,18 @@
       "category": "media",
       "tier": 1,
       "description": "The Information tech journalism",
-      "tags": ["tech_media", "rss"],
-      "note": "",
+      "tags": [
+        "tech_media",
+        "rss"
+      ],
+      "note": "Paywall — RSS returns 403. The Information requires subscription.",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_108",
@@ -317,10 +438,18 @@
       "category": "leadership",
       "tier": 1,
       "description": "Palantir CTO blog",
-      "tags": ["leadership", "newsletter"],
+      "tags": [
+        "leadership",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_109",
@@ -337,10 +466,18 @@
       "category": "official",
       "tier": 1,
       "description": "Palantir official Medium blog",
-      "tags": ["official", "blog"],
+      "tags": [
+        "official",
+        "blog"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_110",
@@ -357,10 +494,18 @@
       "category": "analyst",
       "tier": 1,
       "description": "Palantir-focused publication",
-      "tags": ["analyst", "newsletter"],
+      "tags": [
+        "analyst",
+        "newsletter"
+      ],
       "note": "Palantir-focused publication by Shyam Sankar, Madeline Hart, Blake Seitz",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_111",
@@ -368,7 +513,7 @@
       "type": "newsletter",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://crossingthevalley.substack.com/feed",
       "handle": null,
       "channel_id": null,
@@ -377,10 +522,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Defense tech newsletter",
-      "tags": ["defense", "newsletter"],
-      "note": "Defense tech newsletter by Noah Sheinbaum",
+      "tags": [
+        "defense",
+        "newsletter"
+      ],
+      "note": "Substack feed returns 404 as of 2026-03 — feed may have moved or been deleted",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_120",
@@ -397,10 +550,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Amit Kukreja's Palantir-focused Substack",
-      "tags": ["analyst", "newsletter"],
+      "tags": [
+        "analyst",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_121",
@@ -417,10 +578,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Arny Trezzi Palantir analysis newsletter",
-      "tags": ["analyst", "newsletter"],
+      "tags": [
+        "analyst",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_122",
@@ -437,10 +606,18 @@
       "category": "media",
       "tier": 2,
       "description": "Import AI newsletter by Jack Clark",
-      "tags": ["ai", "newsletter"],
+      "tags": [
+        "ai",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_123",
@@ -457,10 +634,18 @@
       "category": "media",
       "tier": 2,
       "description": "Big Technology newsletter by Alex Kantrowitz",
-      "tags": ["tech_media", "newsletter"],
+      "tags": [
+        "tech_media",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_124",
@@ -477,10 +662,18 @@
       "category": "media",
       "tier": 2,
       "description": "Nonzero Newsletter by Robert Wright",
-      "tags": ["policy", "newsletter"],
+      "tags": [
+        "policy",
+        "newsletter"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_125",
@@ -497,10 +690,18 @@
       "category": "media",
       "tier": 2,
       "description": "Lawfare national security law and policy",
-      "tags": ["policy", "rss"],
+      "tags": [
+        "policy",
+        "rss"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_201",
@@ -517,10 +718,18 @@
       "category": "community",
       "tier": 2,
       "description": "r/palantir subreddit RSS feed",
-      "tags": ["reddit", "community"],
+      "tags": [
+        "reddit",
+        "community"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_202",
@@ -537,10 +746,18 @@
       "category": "community",
       "tier": 2,
       "description": "r/PLTR subreddit RSS feed",
-      "tags": ["reddit", "community"],
+      "tags": [
+        "reddit",
+        "community"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_301",
@@ -557,10 +774,18 @@
       "category": "official",
       "tier": 1,
       "description": "Palantir Technologies official YouTube channel",
-      "tags": ["youtube", "official"],
+      "tags": [
+        "youtube",
+        "official"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_302",
@@ -577,10 +802,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Code and Connor YouTube channel",
-      "tags": ["youtube", "analyst"],
+      "tags": [
+        "youtube",
+        "analyst"
+      ],
       "note": "channel_id needed for RSS",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_303",
@@ -597,10 +830,18 @@
       "category": "leadership",
       "tier": 2,
       "description": "Joe Lonsdale (Palantir co-founder) YouTube channel",
-      "tags": ["youtube", "leadership"],
+      "tags": [
+        "youtube",
+        "leadership"
+      ],
       "note": "channel_id needed for RSS",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_304",
@@ -617,10 +858,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Palantir Bullets YouTube channel by Arny Trezzi",
-      "tags": ["youtube", "analyst"],
+      "tags": [
+        "youtube",
+        "analyst"
+      ],
       "note": "channel_id needed for RSS",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_305",
@@ -637,10 +886,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Palantir Weekly YouTube channel by Amit Kukreja",
-      "tags": ["youtube", "analyst"],
+      "tags": [
+        "youtube",
+        "analyst"
+      ],
       "note": "channel_id needed for RSS",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_306",
@@ -657,10 +914,18 @@
       "category": "media",
       "tier": 2,
       "description": "Bloomberg Odd Lots podcast playlist",
-      "tags": ["youtube", "podcast"],
+      "tags": [
+        "youtube",
+        "podcast"
+      ],
       "note": "Bloomberg podcast playlist",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_401",
@@ -677,10 +942,18 @@
       "category": "official",
       "tier": 1,
       "description": "Palantir Technologies official X account",
-      "tags": ["x", "official"],
+      "tags": [
+        "x",
+        "official"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_402",
@@ -697,10 +970,18 @@
       "category": "leadership",
       "tier": 1,
       "description": "Palantir CTO X account",
-      "tags": ["x", "leadership"],
+      "tags": [
+        "x",
+        "leadership"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_403",
@@ -717,10 +998,18 @@
       "category": "leadership",
       "tier": 1,
       "description": "Palantir President X account",
-      "tags": ["x", "leadership"],
+      "tags": [
+        "x",
+        "leadership"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_404",
@@ -737,10 +1026,18 @@
       "category": "leadership",
       "tier": 1,
       "description": "Palantir co-founder Joe Lonsdale X account",
-      "tags": ["x", "leadership"],
+      "tags": [
+        "x",
+        "leadership"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_405",
@@ -757,10 +1054,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Breaking Defense X account",
-      "tags": ["x", "defense_media"],
+      "tags": [
+        "x",
+        "defense_media"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_406",
@@ -777,10 +1082,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Defense One X account",
-      "tags": ["x", "defense_media"],
+      "tags": [
+        "x",
+        "defense_media"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_407",
@@ -797,10 +1110,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "C4ISRNET X account",
-      "tags": ["x", "defense_media"],
+      "tags": [
+        "x",
+        "defense_media"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_408",
@@ -817,10 +1138,18 @@
       "category": "defense_media",
       "tier": 1,
       "description": "Defense News X account",
-      "tags": ["x", "defense_media"],
+      "tags": [
+        "x",
+        "defense_media"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_409",
@@ -837,10 +1166,18 @@
       "category": "media",
       "tier": 1,
       "description": "FedScoop X account",
-      "tags": ["x", "govtech"],
+      "tags": [
+        "x",
+        "govtech"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_410",
@@ -857,10 +1194,18 @@
       "category": "media",
       "tier": 1,
       "description": "Nextgov/FCW federal technology news X account",
-      "tags": ["x", "govtech"],
+      "tags": [
+        "x",
+        "govtech"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_411",
@@ -877,10 +1222,18 @@
       "category": "media",
       "tier": 1,
       "description": "GovConWire government contracting news X account",
-      "tags": ["x", "contract"],
+      "tags": [
+        "x",
+        "contract"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_412",
@@ -897,10 +1250,18 @@
       "category": "defense_policy",
       "tier": 1,
       "description": "Hill & Valley Forum defense tech policy X account",
-      "tags": ["x", "policy"],
+      "tags": [
+        "x",
+        "policy"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_413",
@@ -917,10 +1278,18 @@
       "category": "official",
       "tier": 1,
       "description": "UK Ministry of Defence official X account",
-      "tags": ["x", "official"],
+      "tags": [
+        "x",
+        "official"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_414",
@@ -937,10 +1306,18 @@
       "category": "analyst",
       "tier": 1,
       "description": "First Breakfast X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_420",
@@ -957,10 +1334,18 @@
       "category": "community",
       "tier": 2,
       "description": "PLTR community X account",
-      "tags": ["x", "community"],
+      "tags": [
+        "x",
+        "community"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_421",
@@ -977,10 +1362,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Amit Kukreja X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_422",
@@ -997,10 +1390,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Arny Trezzi X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_423",
@@ -1017,10 +1418,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "David Smiley X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_424",
@@ -1037,10 +1446,18 @@
       "category": "investor",
       "tier": 2,
       "description": "Muddy Waters Research X account",
-      "tags": ["x", "investor"],
+      "tags": [
+        "x",
+        "investor"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_425",
@@ -1057,10 +1474,18 @@
       "category": "investor",
       "tier": 2,
       "description": "Chamath Palihapitiya X account",
-      "tags": ["x", "investor"],
+      "tags": [
+        "x",
+        "investor"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_426",
@@ -1077,10 +1502,18 @@
       "category": "policy",
       "tier": 2,
       "description": "Center for Security and Emerging Technology X account",
-      "tags": ["x", "policy"],
+      "tags": [
+        "x",
+        "policy"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_427",
@@ -1097,10 +1530,18 @@
       "category": "policy",
       "tier": 2,
       "description": "Center for a New American Security X account",
-      "tags": ["x", "policy"],
+      "tags": [
+        "x",
+        "policy"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_428",
@@ -1117,10 +1558,18 @@
       "category": "policy",
       "tier": 2,
       "description": "Paul Scharre (CNAS VP) X account",
-      "tags": ["x", "policy"],
+      "tags": [
+        "x",
+        "policy"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_429",
@@ -1137,10 +1586,18 @@
       "category": "defense_media",
       "tier": 2,
       "description": "Noah Sheinbaum defense tech X account",
-      "tags": ["x", "defense_media"],
+      "tags": [
+        "x",
+        "defense_media"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_430",
@@ -1157,10 +1614,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Madeline Zimm X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "First Breakfast / Kinetic Reviews",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_431",
@@ -1177,10 +1642,18 @@
       "category": "analyst",
       "tier": 2,
       "description": "Blake Seitz X account",
-      "tags": ["x", "analyst"],
+      "tags": [
+        "x",
+        "analyst"
+      ],
       "note": "First Breakfast",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_501",
@@ -1197,10 +1670,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir news",
-      "tags": ["ddg", "news"],
+      "tags": [
+        "ddg",
+        "news"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_502",
@@ -1217,10 +1698,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir contract awards",
-      "tags": ["ddg", "contract"],
+      "tags": [
+        "ddg",
+        "contract"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_503",
@@ -1237,10 +1726,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir AIP government defense",
-      "tags": ["ddg", "defense"],
+      "tags": [
+        "ddg",
+        "defense"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_504",
@@ -1257,10 +1754,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir earnings and revenue",
-      "tags": ["ddg", "financials"],
+      "tags": [
+        "ddg",
+        "financials"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_505",
@@ -1277,10 +1782,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Alex Karp interviews",
-      "tags": ["ddg", "leadership"],
+      "tags": [
+        "ddg",
+        "leadership"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_506",
@@ -1297,10 +1810,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir DOGE government coverage",
-      "tags": ["ddg", "news"],
+      "tags": [
+        "ddg",
+        "news"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_507",
@@ -1317,10 +1838,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir military AI",
-      "tags": ["ddg", "defense"],
+      "tags": [
+        "ddg",
+        "defense"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_508",
@@ -1337,10 +1866,18 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for Palantir Technologies announcements",
-      "tags": ["ddg", "news"],
+      "tags": [
+        "ddg",
+        "news"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     },
     {
       "id": "src_509",
@@ -1357,10 +1894,164 @@
       "category": "news",
       "tier": 2,
       "description": "DuckDuckGo web search for PLTR stock analysis",
-      "tags": ["ddg", "financials"],
+      "tags": [
+        "ddg",
+        "financials"
+      ],
       "note": "",
       "added": "2025-01-01",
-      "stats": {"total_items": 0, "last_run": null, "last_count": 0, "history": []}
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_510",
+      "name": "Palantir UK contract news",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir UK government contract",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: UK government Palantir contracts",
+      "tags": [
+        "ddg",
+        "uk",
+        "contract"
+      ],
+      "note": "Compensates for broken UK Contracts Finder API",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_511",
+      "name": "Palantir NATO Europe contract",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir NATO Europe defense contract award",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: NATO/Europe Palantir contract awards",
+      "tags": [
+        "ddg",
+        "eu",
+        "nato",
+        "contract"
+      ],
+      "note": "Compensates for broken EU TED API (requires registered key)",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_512",
+      "name": "Palantir Australia government",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir Australia government ADF AUKUS",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: Australia/ADF Palantir news",
+      "tags": [
+        "ddg",
+        "australia",
+        "contract"
+      ],
+      "note": "Compensates for broken AusTender API",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_513",
+      "name": "Palantir DOGE federal spending",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "screened",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir DOGE federal contract government spending",
+      "filter_palantir": false,
+      "category": "official",
+      "tier": 3,
+      "description": "DuckDuckGo: Palantir DOGE/federal spending deals",
+      "tags": [
+        "ddg",
+        "us",
+        "doge",
+        "contract"
+      ],
+      "note": "",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_514",
+      "name": "Breaking Defense — Palantir",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "screened",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir site:breakingdefense.com",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 2,
+      "description": "DuckDuckGo search on Breaking Defense for Palantir news",
+      "tags": [
+        "ddg",
+        "defense_media"
+      ],
+      "note": "Compensates for RSS 403 block",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
     }
   ]
 }

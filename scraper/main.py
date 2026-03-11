@@ -172,8 +172,8 @@ def run():
             if item["id"] not in existing_pending_ids:
                 new_inbox.append(item)
 
-    print(f"[main] {len(new_karptube)} → KarpTube (all), "
-          f"{len(new_inbox)} → Inbox (elevated deal items), "
+    print(f"[main] {len(new_karptube)} -> KarpTube (all), "
+          f"{len(new_inbox)} -> Inbox (elevated deal items), "
           f"from {len(all_items)} scraped")
 
     # Write pending.js (Inbox — deal-elevated items only)

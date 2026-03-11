@@ -1,38 +1,88 @@
-import hashlib
+"""Canada contracts scraper.
+
+NOTE: The Open Canada proactive disclosure CSV (contracts over $10K) is ~400MB+
+      and is not in the CKAN datastore, so keyword search via API is unavailable.
+      The search.open.canada.ca ElasticSearch endpoint times out externally.
+
+      Canadian Palantir contracts are captured via Google News RSS and DDG queries.
+      The historical contracts already in data.js cover known CA contracts.
+
+To re-enable: investigate if CanadaBuys (canadabuys.canada.ca) has an API,
+or register for ProxyApi access to the open.canada.ca ElasticSearch endpoint.
+"""
 import requests
 from datetime import datetime
 
 
 def scrape():
-    # Canada Open Government proactive disclosure dataset
-    url = "https://search.open.canada.ca/en/ct/search/"
-    params = {
-        "search_text": "palantir",
-        "sort": "score desc",
-        "page": 1,
-        "num_per_page": 50,
-    }
+    items = _scrape_canadabuys()
+    print(f"[canada] {len(items)} items")
+    return items
 
-    try:
-        resp = requests.get(url, params=params, timeout=30,
-                            headers={"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"})
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        print(f"[canada] Primary endpoint error: {e}")
-        # Fallback: CKAN open data API
-        return _scrape_ckan()
 
+def _scrape_canadabuys():
+    """Try CanadaBuys public tender notice API."""
+    # CanadaBuys replaced BuyandsellGC; attempt their search API
+    urls = [
+        "https://canadabuys.canada.ca/en/api/tender-notices?q=palantir&limit=50",
+        "https://canadabuys.canada.ca/api/v1/notices?q=palantir",
+    ]
+    for url in urls:
+        try:
+            resp = requests.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; research-bot/1.0)",
+                         "Accept": "application/json"},
+                timeout=20,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                items = _parse_canadabuys(data)
+                if items is not None:
+                    return items
+        except Exception as e:
+            print(f"[canada] {url[:50]} error: {e}")
+
+    print("[canada] API unavailable — CA contracts captured via Google News/DDG")
+    return []
+
+
+def _parse_canadabuys(data):
+    if not data:
+        return None
+    records = (
+        data.get("results")
+        or data.get("data")
+        or data.get("items")
+        or []
+    )
+    if not isinstance(records, list) or not records:
+        return None
+
+    import hashlib
     items = []
-    for hit in data.get("hits", {}).get("hits", []):
-        src = hit.get("_source", {})
-        contract_id = src.get("contract_id", "")
-        title = src.get("description_en") or src.get("description_fr") or "Canadian Federal Contract"
-        dept = src.get("owner_org_title", "")
-        value_cad = src.get("contract_value") or 0
-        date_str = (src.get("contract_date") or "")[:10]
+    for rec in records:
+        contract_id = str(rec.get("id") or rec.get("reference_number") or "")
+        title = (
+            rec.get("title")
+            or rec.get("description_en")
+            or "Canadian Federal Contract"
+        )
+        dept = rec.get("buyer_name") or rec.get("owner_org_title") or ""
+        vendor = rec.get("vendor_name", "")
+        value_cad = 0
+        try:
+            value_cad = float(rec.get("contract_value") or 0)
+        except (ValueError, TypeError):
+            pass
+        date_str = str(rec.get("contract_date") or rec.get("date") or "")[:10]
 
         uid = hashlib.sha256(f"canada-{contract_id}".encode()).hexdigest()[:16]
+        snippet = dept
+        if vendor:
+            snippet += f" \u00b7 {vendor}"
+        if value_cad:
+            snippet += f" \u00b7 CAD ${value_cad:,.0f}"
 
         items.append({
             "id": uid,
@@ -40,56 +90,19 @@ def scrape():
             "source_type": "contract_api",
             "category": "official",
             "title": str(title)[:120],
-            "snippet": f"{dept} · CAD ${float(value_cad):,.0f}" if value_cad else str(dept),
-            "url": f"https://search.open.canada.ca/en/ct/id/{contract_id}" if contract_id else "https://open.canada.ca",
+            "snippet": snippet[:200],
+            "url": (
+                f"https://canadabuys.canada.ca/en/tender-notices/{contract_id}"
+                if contract_id
+                else "https://canadabuys.canada.ca"
+            ),
             "date": date_str,
             "scraped_at": datetime.utcnow().isoformat() + "Z",
             "contract_data": {
                 "entity": str(dept),
                 "country": "Canada",
-                "value": round(float(value_cad) / 1_000_000 * 0.74, 2) if value_cad else None,  # approx USD
-                "year": int(date_str[:4]) if date_str else None,
+                "value": round(value_cad / 1_000_000 * 0.74, 2) if value_cad else None,
+                "year": int(date_str[:4]) if len(date_str) >= 4 else None,
             },
         })
-
-    print(f"[canada] {len(items)} items")
-    return items
-
-
-def _scrape_ckan():
-    url = "https://open.canada.ca/data/en/api/3/action/datastore_search"
-    params = {
-        "resource_id": "fac950c0-00d5-4ec1-a4d3-9cbebf98a305",
-        "q": "palantir",
-        "limit": 50,
-    }
-    try:
-        resp = requests.get(url, params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        print(f"[canada] CKAN fallback error: {e}")
-        return []
-
-    items = []
-    for rec in data.get("result", {}).get("records", []):
-        uid = hashlib.sha256(f"canada-ckan-{rec.get('_id', '')}".encode()).hexdigest()[:16]
-        items.append({
-            "id": uid,
-            "source": "CanadaBuys / Open Canada",
-            "source_type": "contract_api",
-            "category": "official",
-            "title": str(rec.get("description_en", "Canadian Contract"))[:120],
-            "snippet": rec.get("owner_org_title", ""),
-            "url": "https://open.canada.ca/data/en/dataset/d8f85d91-7dec-4fd1-8055-483b77225d8b",
-            "date": str(rec.get("contract_date", ""))[:10],
-            "scraped_at": datetime.utcnow().isoformat() + "Z",
-            "contract_data": {
-                "entity": rec.get("owner_org_title", ""),
-                "country": "Canada",
-                "value": None,
-                "year": None,
-            },
-        })
-    print(f"[canada] CKAN fallback: {len(items)} items")
     return items

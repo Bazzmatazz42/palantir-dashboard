@@ -1,7 +1,7 @@
-// Auto-generated from sources_master.json. Last updated: 2026-03-11T00:00:00Z
+// Auto-generated from sources_master.json. Last updated: 2026-03-11T12:14:38Z
 window.SOURCES_MASTER = {
   "version": "1.0",
-  "updated": "2026-03-11T00:00:00Z",
+  "updated": "2026-03-11T12:14:38.807701+00:00",
   "sources": [
     {
       "id": "src_001",
@@ -262,7 +262,7 @@ window.SOURCES_MASTER = {
       "type": "rss",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://breakingdefense.com/feed/",
       "handle": null,
       "channel_id": null,
@@ -275,7 +275,7 @@ window.SOURCES_MASTER = {
         "defense",
         "rss"
       ],
-      "note": "",
+      "note": "RSS feed returns 403 as of 2026-03 — Breaking Defense blocks all feed scrapers. Covered by DDG news query.",
       "added": "2025-01-01",
       "stats": {
         "total_items": 0,
@@ -402,7 +402,7 @@ window.SOURCES_MASTER = {
       "type": "rss",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://www.theinformation.com/feed",
       "handle": null,
       "channel_id": null,
@@ -415,7 +415,7 @@ window.SOURCES_MASTER = {
         "tech_media",
         "rss"
       ],
-      "note": "",
+      "note": "Paywall — RSS returns 403. The Information requires subscription.",
       "added": "2025-01-01",
       "stats": {
         "total_items": 0,
@@ -514,7 +514,7 @@ window.SOURCES_MASTER = {
       "type": "newsletter",
       "scraper": "rss_feed",
       "destination": "screened",
-      "status": "active",
+      "status": "inactive",
       "url": "https://crossingthevalley.substack.com/feed",
       "handle": null,
       "channel_id": null,
@@ -527,7 +527,7 @@ window.SOURCES_MASTER = {
         "defense",
         "newsletter"
       ],
-      "note": "Defense tech newsletter by Noah Sheinbaum",
+      "note": "Substack feed returns 404 as of 2026-03 — feed may have moved or been deleted",
       "added": "2025-01-01",
       "stats": {
         "total_items": 0,
@@ -1901,6 +1901,152 @@ window.SOURCES_MASTER = {
       ],
       "note": "",
       "added": "2025-01-01",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_510",
+      "name": "Palantir UK contract news",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir UK government contract",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: UK government Palantir contracts",
+      "tags": [
+        "ddg",
+        "uk",
+        "contract"
+      ],
+      "note": "Compensates for broken UK Contracts Finder API",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_511",
+      "name": "Palantir NATO Europe contract",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir NATO Europe defense contract award",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: NATO/Europe Palantir contract awards",
+      "tags": [
+        "ddg",
+        "eu",
+        "nato",
+        "contract"
+      ],
+      "note": "Compensates for broken EU TED API (requires registered key)",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_512",
+      "name": "Palantir Australia government",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "karptube",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir Australia government ADF AUKUS",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 3,
+      "description": "DuckDuckGo: Australia/ADF Palantir news",
+      "tags": [
+        "ddg",
+        "australia",
+        "contract"
+      ],
+      "note": "Compensates for broken AusTender API",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_513",
+      "name": "Palantir DOGE federal spending",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "screened",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir DOGE federal contract government spending",
+      "filter_palantir": false,
+      "category": "official",
+      "tier": 3,
+      "description": "DuckDuckGo: Palantir DOGE/federal spending deals",
+      "tags": [
+        "ddg",
+        "us",
+        "doge",
+        "contract"
+      ],
+      "note": "",
+      "added": "2026-03-11",
+      "stats": {
+        "total_items": 0,
+        "last_run": null,
+        "last_count": 0,
+        "history": []
+      }
+    },
+    {
+      "id": "src_514",
+      "name": "Breaking Defense — Palantir",
+      "type": "ddg_query",
+      "scraper": "web_search",
+      "destination": "screened",
+      "status": "active",
+      "url": null,
+      "handle": null,
+      "channel_id": null,
+      "query": "Palantir site:breakingdefense.com",
+      "filter_palantir": false,
+      "category": "media",
+      "tier": 2,
+      "description": "DuckDuckGo search on Breaking Defense for Palantir news",
+      "tags": [
+        "ddg",
+        "defense_media"
+      ],
+      "note": "Compensates for RSS 403 block",
+      "added": "2026-03-11",
       "stats": {
         "total_items": 0,
         "last_run": null,

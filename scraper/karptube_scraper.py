@@ -69,12 +69,23 @@ def make_item(uid, source, source_type, title, snippet, url, date_str):
     }
 
 
+_RSS_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*",
+}
+
+
 def scrape_rss_feeds():
     """RSS: news sites, Substacks, Medium, YouTube channels, Reddit, Google News."""
     try:
         import feedparser
+        import requests as req
     except ImportError:
-        print("[karptube-rss] feedparser not installed")
+        print("[karptube-rss] feedparser or requests not installed")
         return []
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -87,16 +98,24 @@ def scrape_rss_feeds():
     for s in registry_feeds:
         FEEDS.append((s["name"], s["url"], s.get("type", "rss"), s.get("filter_palantir", True)))
     for s in youtube_feeds:
-        FEEDS.append((s["name"], s["url"], "video", s.get("filter_palantir", False)))
+        if s.get("url") and "youtube.com/feeds" in s["url"]:
+            FEEDS.append((s["name"], s["url"], "video", s.get("filter_palantir", False)))
     for s in reddit_feeds:
         FEEDS.append((s["name"], s["url"], "blog", s.get("filter_palantir", False)))
 
     items = []
     for name, url, source_type, must_mention in FEEDS:
+        if not url:
+            continue
         try:
-            feed = feedparser.parse(url)
+            # Pre-fetch via requests for better redirect/encoding handling
+            resp = req.get(url, timeout=20, headers=_RSS_HEADERS)
+            if resp.status_code != 200:
+                print(f"[karptube-rss] {name}: HTTP {resp.status_code}")
+                continue
+            feed = feedparser.parse(resp.content)
             if feed.bozo and not feed.entries:
-                print(f"[karptube-rss] Failed to parse {name}")
+                print(f"[karptube-rss] Failed to parse {name}: {feed.bozo_exception}")
                 continue
             count = 0
             for entry in feed.entries[:30]:

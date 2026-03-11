@@ -1,6 +1,33 @@
 import hashlib
 import feedparser
+import requests
 from datetime import datetime, timedelta, timezone
+
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "application/rss+xml, application/atom+xml, "
+        "application/xml, text/xml;q=0.9, */*;q=0.8"
+    ),
+}
+
+
+def _fetch_feed(url):
+    """Fetch feed content via requests then parse with feedparser.
+    This handles redirects, HTTPS quirks, and encoding issues
+    that feedparser.parse(url) silently fails on."""
+    try:
+        resp = requests.get(url, timeout=20, headers=_HEADERS)
+        if resp.status_code != 200:
+            return None, f"HTTP {resp.status_code}"
+        feed = feedparser.parse(resp.content)
+        return feed, None
+    except requests.exceptions.RequestException as e:
+        return None, str(e)
 
 
 def scrape(feeds):
@@ -12,13 +39,12 @@ def scrape(feeds):
         url = feed_config["url"]
         must_mention_palantir = feed_config.get("filter_palantir", True)
 
-        try:
-            feed = feedparser.parse(url)
-            if feed.bozo and not feed.entries:
-                print(f"[rss] Failed to parse {name}: {feed.bozo_exception}")
-                continue
-        except Exception as e:
-            print(f"[rss] Error fetching {name}: {e}")
+        feed, err = _fetch_feed(url)
+        if feed is None:
+            print(f"[rss] {name}: fetch error — {err}")
+            continue
+        if feed.bozo and not feed.entries:
+            print(f"[rss] {name}: parse error — {feed.bozo_exception}")
             continue
 
         count = 0
