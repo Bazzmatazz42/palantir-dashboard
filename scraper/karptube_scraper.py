@@ -18,6 +18,7 @@ OUTPUT_PATH = os.path.join(DASHBOARD_DIR, "karptube.js")
 SEEN_PATH = os.path.join(os.path.dirname(__file__), "karptube_seen_ids.json")
 
 sys.path.insert(0, os.path.dirname(__file__))
+import source_registry
 
 
 def load_seen():
@@ -78,33 +79,17 @@ def scrape_rss_feeds():
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
-    FEEDS = [
-        # News
-        ("Google News — Palantir", "https://news.google.com/rss/search?q=palantir&hl=en-US&gl=US&ceid=US:en", "news", False),
-        ("Breaking Defense", "https://breakingdefense.com/feed/", "news", True),
-        ("Defense One", "https://www.defenseone.com/rss/all/", "news", True),
-        ("C4ISRNET", "https://www.c4isrnet.com/arc/outboundfeeds/rss/", "news", True),
-        ("FedScoop", "https://fedscoop.com/feed/", "news", True),
-        ("War on the Rocks", "https://warontherocks.com/feed/", "news", True),
-        ("Lawfare", "https://www.lawfaremedia.org/feed", "news", True),
-        ("The Information", "https://www.theinformation.com/feed", "news", True),
-        # Newsletters / Substacks
-        ("Shyam Sankar", "https://shyamsankar.com/feed", "newsletter", False),
-        ("Amit Kukreja", "https://amitsdeepdives.substack.com/feed", "newsletter", True),
-        ("Arny Trezzi", "https://arnytrezzi.substack.com/feed", "newsletter", True),
-        ("Import AI (Jack Clark)", "https://importai.substack.com/feed", "newsletter", True),
-        ("Big Technology", "https://bigtechnology.substack.com/feed", "newsletter", True),
-        ("Nonzero Newsletter", "https://nonzero.substack.com/feed", "newsletter", True),
-        ("First Breakfast", "https://firstbreakfast.substack.com/feed", "newsletter", True),
-        ("Crossing the Valley", "https://crossingthevalley.substack.com/feed", "newsletter", True),
-        # Blogs / Medium
-        ("Palantir (Medium)", "https://medium.com/feed/palantir", "blog", True),
-        # Reddit
-        ("r/palantir", "https://www.reddit.com/r/palantir/.rss", "blog", False),
-        ("r/PLTR", "https://www.reddit.com/r/PLTR/.rss", "blog", False),
-        # YouTube (RSS)
-        ("Palantir Tech (YouTube)", "https://www.youtube.com/feeds/videos.xml?channel_id=UCXDlpGEFdP4i_JBDpQoAOyg", "video", False),
-    ]
+    registry_feeds = source_registry.get_rss_sources(destinations=["karptube"])
+    youtube_feeds = source_registry.get_youtube_sources()
+    reddit_feeds = source_registry.get_reddit_sources()
+
+    FEEDS = []
+    for s in registry_feeds:
+        FEEDS.append((s["name"], s["url"], s.get("type", "rss"), s.get("filter_palantir", True)))
+    for s in youtube_feeds:
+        FEEDS.append((s["name"], s["url"], "video", s.get("filter_palantir", False)))
+    for s in reddit_feeds:
+        FEEDS.append((s["name"], s["url"], "blog", s.get("filter_palantir", False)))
 
     items = []
     for name, url, source_type, must_mention in FEEDS:
@@ -163,20 +148,8 @@ def scrape_web_search():
             print("[karptube-ddg] ddgs not installed")
             return []
 
-    queries = [
-        ("Palantir news", "news"),
-        ("Palantir contract award", "news"),
-        ("Palantir AIP government defense", "news"),
-        ("Palantir earnings revenue", "news"),
-        ("Palantir Alex Karp interview", "news"),
-        ("Palantir Shyam Sankar", "news"),
-        ("Palantir Peter Thiel", "news"),
-        ("Palantir military AI", "news"),
-        ("Palantir DOGE government", "news"),
-        ("Palantir stock PLTR analysis", "article"),
-        ("Palantir podcast interview 2026", "podcast"),
-        ("Palantir Technologies announcement", "news"),
-    ]
+    registry_queries = source_registry.get_ddg_queries()
+    queries = [(s["query"], s.get("type", "news")) for s in registry_queries]
 
     items = []
     with DDGS() as ddgs:
@@ -237,6 +210,7 @@ def run():
 
     write_output(merged)
     save_seen(seen)
+    source_registry.save()
     print(f"[karptube] Done. Total: {len(merged)}")
 
 

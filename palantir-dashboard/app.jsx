@@ -6,6 +6,7 @@ const COLORS = window.COLORS;
 const PIE_COLORS = window.PIE_COLORS;
 const RUN_RATES = window.RUN_RATES;
 const PLTR_DOCS = window.PALANTIR_OFFICIAL_DOCS;
+const SOURCES_MASTER = window.SOURCES_MASTER || { sources: [] };
 
 const fmt = (v) => {
   if (v === null || v === undefined) return "Undisclosed";
@@ -32,7 +33,7 @@ const Stat = ({ label, value, sub, color }) => (
   </div>
 );
 
-const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "Financials", "PLTR Docs", "Sources", "KarpTube", "Inbox"];
+const TABS = ["Overview", "Explorer", "By Country", "Timeline", "Deal Flow", "Run Rate", "Financials", "PLTR Docs", "Sources", "Feed Hub", "KarpTube", "Inbox"];
 
 // Slice-and-dice treemap: returns array of {x,y,w,h,...item} in 0-100 coordinate space
 // scaledValue is used for layout; item.value holds the real count
@@ -132,6 +133,32 @@ function PalantirDashboard() {
   const [ktLastPulled, setKtLastPulled] = useState(null);
   const [ktLiveCount, setKtLiveCount] = useState(0);
   const [ktFetchStatus, setKtFetchStatus] = useState(""); // per-feed progress message
+
+  // ===== FEED HUB STATE =====
+  const [fhSources, setFhSources] = useState(() => {
+    const base = SOURCES_MASTER.sources || [];
+    try {
+      const edits = JSON.parse(localStorage.getItem("feed_hub_edits") || "{}");
+      const addedIds = new Set(base.map(s => s.id));
+      const newSources = Object.values(edits).filter(e => e._new && !addedIds.has(e.id));
+      return [...base.map(s => edits[s.id] ? {...s, ...edits[s.id]} : s), ...newSources];
+    } catch { return base; }
+  });
+  const [fhEdits, setFhEdits] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("feed_hub_edits") || "{}"); }
+    catch { return {}; }
+  });
+  const [fhFilter, setFhFilter] = useState({ status: "All", type: "All", dest: "All", search: "" });
+  const [fhShowAdd, setFhShowAdd] = useState(false);
+  const [fhAddForm, setFhAddForm] = useState({
+    name: "", type: "rss", scraper: "rss_feed", destination: "screened",
+    url: "", handle: "", channel_id: "", query: "", filter_palantir: true,
+    category: "media", description: "", note: "", tier: 2
+  });
+  const [fhShowExport, setFhShowExport] = useState(false);
+  const [fhGhToken, setFhGhToken] = useState(() => localStorage.getItem("feed_hub_gh_token") || "");
+  const [fhCommitting, setFhCommitting] = useState(false);
+  const [fhCommitStatus, setFhCommitStatus] = useState("");
 
   // ===== INBOX STATE =====
   const pendingItems = useMemo(() => window.PENDING_ITEMS || [], []);
@@ -2394,6 +2421,367 @@ function PalantirDashboard() {
     }
   }, [tab]);
 
+  const fhApplyEdit = (id, changes) => {
+    const newEdits = { ...fhEdits, [id]: { ...(fhEdits[id] || {}), ...changes } };
+    setFhEdits(newEdits);
+    localStorage.setItem("feed_hub_edits", JSON.stringify(newEdits));
+    setFhSources(prev => prev.map(s => s.id === id ? { ...s, ...changes } : s));
+  };
+
+  const fhToggleStatus = (id) => {
+    const src = fhSources.find(s => s.id === id);
+    if (!src) return;
+    fhApplyEdit(id, { status: src.status === "active" ? "paused" : "active" });
+  };
+
+  const fhExportJSON = () => {
+    return JSON.stringify({
+      version: "1.0",
+      updated: new Date().toISOString(),
+      sources: fhSources.map(s => {
+        const { _new, ...clean } = s;
+        return clean;
+      })
+    }, null, 2);
+  };
+
+  const fhCommitToGithub = async () => {
+    if (!fhGhToken) return;
+    setFhCommitting(true);
+    setFhCommitStatus("Fetching current file...");
+    try {
+      const headers = { Authorization: `token ${fhGhToken}`, Accept: "application/vnd.github.v3+json" };
+      const r1 = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/contents/palantir-dashboard/sources_master.json", { headers });
+      const f1 = await r1.json();
+      if (!f1.sha) throw new Error("Could not get file SHA — check token permissions");
+      setFhCommitStatus("Committing...");
+      const content = btoa(unescape(encodeURIComponent(fhExportJSON())));
+      const r2 = await fetch("https://api.github.com/repos/Bazzmatazz42/palantir-dashboard/contents/palantir-dashboard/sources_master.json", {
+        method: "PUT", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "feat: update source registry from Feed Hub", content, sha: f1.sha })
+      });
+      if (!r2.ok) throw new Error(`GitHub API error: ${r2.status}`);
+      setFhCommitStatus("Committed! Scraper will use new sources on next run.");
+      // Clear edits after successful commit
+      setFhEdits({});
+      localStorage.removeItem("feed_hub_edits");
+    } catch (e) {
+      setFhCommitStatus(`Error: ${e.message}`);
+    }
+    setFhCommitting(false);
+    setTimeout(() => setFhCommitStatus(""), 8000);
+  };
+
+  const fhAddSource = () => {
+    const form = fhAddForm;
+    if (!form.name.trim()) return;
+    const newId = "src_user_" + Date.now();
+    const newSource = {
+      id: newId, name: form.name.trim(), type: form.type, scraper: form.scraper,
+      destination: form.destination, status: "active",
+      url: form.url.trim() || null, handle: form.handle.trim() || null,
+      channel_id: form.channel_id.trim() || null, query: form.query.trim() || null,
+      filter_palantir: form.filter_palantir, category: form.category,
+      tier: Number(form.tier), description: form.description.trim(),
+      note: form.note.trim(), added: new Date().toISOString().slice(0, 10),
+      tags: [], _new: true,
+      stats: { total_items: 0, last_run: null, last_count: 0, history: [] }
+    };
+    // auto-set scraper based on type
+    if (form.type === "youtube") newSource.scraper = form.channel_id.trim() ? "youtube_rss" : "display_only";
+    if (form.type === "reddit") newSource.scraper = "reddit_rss";
+    if (form.type === "x_handle") newSource.scraper = "x_ddg";
+    if (form.type === "ddg_query") newSource.scraper = "ddg_web";
+    if (["rss","newsletter","blog"].includes(form.type)) newSource.scraper = "rss_feed";
+    const newEdits = { ...fhEdits, [newId]: { ...newSource } };
+    setFhEdits(newEdits);
+    localStorage.setItem("feed_hub_edits", JSON.stringify(newEdits));
+    setFhSources(prev => [...prev, newSource]);
+    setFhShowAdd(false);
+    setFhAddForm({ name: "", type: "rss", scraper: "rss_feed", destination: "screened",
+      url: "", handle: "", channel_id: "", query: "", filter_palantir: true,
+      category: "media", description: "", note: "", tier: 2 });
+  };
+
+  const renderFeedHub = () => {
+    const TYPE_META = {
+      contract_api: { label: "CONTRACT API", color: "#22c55e", symbol: "◆" },
+      sec_edgar:    { label: "SEC FILING",   color: "#a78bfa", symbol: "▪" },
+      ir_page:      { label: "IR PAGE",      color: "#a78bfa", symbol: "▫" },
+      rss:          { label: "RSS",          color: "#38bdf8", symbol: "≡" },
+      newsletter:   { label: "NEWSLETTER",   color: "#38bdf8", symbol: "≡" },
+      blog:         { label: "BLOG",         color: "#38bdf8", symbol: "≡" },
+      youtube:      { label: "YOUTUBE",      color: "#f87171", symbol: "▶" },
+      reddit:       { label: "REDDIT",       color: "#fb923c", symbol: "○" },
+      x_handle:     { label: "X / TWITTER",  color: "#94a3b8", symbol: "✕" },
+      ddg_query:    { label: "WEB SEARCH",   color: "#fbbf24", symbol: "⊙" },
+      podcast:      { label: "PODCAST",      color: "#c084fc", symbol: "◉" },
+    };
+    const DEST_META = {
+      inbox:    { label: "INBOX",    color: "#22c55e" },
+      karptube: { label: "KARPTUBE", color: "#a78bfa" },
+      screened: { label: "SCREENED", color: "#f59e0b" },
+    };
+    const CAT_OPTIONS = ["official", "leadership", "defense_media", "analyst", "media", "community", "policy", "investor", "news"];
+    const TYPE_OPTIONS = ["contract_api", "sec_edgar", "ir_page", "rss", "newsletter", "blog", "youtube", "reddit", "x_handle", "ddg_query", "podcast"];
+    const selectStyle = { background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", fontSize: 12, outline: "none", cursor: "pointer" };
+    const inputStyle = { background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box" };
+
+    // Filter
+    const filtered = fhSources.filter(s => {
+      if (fhFilter.status !== "All" && s.status !== fhFilter.status.toLowerCase()) return false;
+      if (fhFilter.type !== "All" && s.type !== fhFilter.type) return false;
+      if (fhFilter.dest !== "All" && s.destination !== fhFilter.dest) return false;
+      if (fhFilter.search) {
+        const q = fhFilter.search.toLowerCase();
+        if (!((s.name||"").toLowerCase().includes(q)) && !((s.url||"").toLowerCase().includes(q)) &&
+            !((s.handle||"").toLowerCase().includes(q)) && !((s.query||"").toLowerCase().includes(q)) &&
+            !((s.description||"").toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+
+    // Stats
+    const total = fhSources.length;
+    const active = fhSources.filter(s => s.status === "active").length;
+    const paused = fhSources.filter(s => s.status === "paused").length;
+    const inboxCount = fhSources.filter(s => s.destination === "inbox").length;
+    const ktCount = fhSources.filter(s => s.destination === "karptube").length;
+    const screenedCount = fhSources.filter(s => s.destination === "screened").length;
+    const pendingEdits = Object.keys(fhEdits).length;
+
+    const fmtDate = (iso) => {
+      if (!iso) return "Never";
+      try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+      catch { return "—"; }
+    };
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.accent }}>Feed Hub</div>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 3 }}>
+              Source registry · {total} sources · {active} active · {paused} paused
+            </div>
+          </div>
+          <button onClick={() => setFhShowAdd(true)} style={{ background: COLORS.accent + "22", color: COLORS.accent, border: `1px solid ${COLORS.accent + "55"}`, borderRadius: 8, padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5 }}>
+            + Add Source
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {[
+            { label: "Total Sources", value: total, color: COLORS.accent },
+            { label: "Active", value: active, color: "#22c55e" },
+            { label: "Paused", value: paused, color: "#f59e0b" },
+            { label: "To Inbox", value: inboxCount, color: "#22c55e" },
+            { label: "Screened", value: screenedCount, color: "#f59e0b" },
+            { label: "To KarpTube", value: ktCount, color: "#a78bfa" },
+          ].map(s => (
+            <div key={s.label} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 16px", flex: 1, minWidth: 100 }}>
+              <div style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1.2, marginTop: 2 }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Pending changes banner */}
+        {pendingEdits > 0 && (
+          <div style={{ background: "#f59e0b11", border: `1px solid #f59e0b44`, borderRadius: 8, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>{pendingEdits} unsaved change{pendingEdits !== 1 ? "s" : ""} · stored in browser</span>
+            <button onClick={() => setFhShowExport(v => !v)} style={{ background: "#f59e0b22", color: "#f59e0b", border: `1px solid #f59e0b55`, borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              Export JSON
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+              <input
+                type="password"
+                placeholder="GitHub token (for direct commit)"
+                value={fhGhToken}
+                onChange={e => { setFhGhToken(e.target.value); localStorage.setItem("feed_hub_gh_token", e.target.value); }}
+                style={{ ...inputStyle, width: 240, padding: "4px 10px" }}
+              />
+              <button
+                onClick={fhCommitToGithub}
+                disabled={!fhGhToken || fhCommitting}
+                style={{ background: fhGhToken && !fhCommitting ? "#22c55e22" : COLORS.card, color: fhGhToken && !fhCommitting ? "#22c55e" : COLORS.textMuted, border: `1px solid ${fhGhToken && !fhCommitting ? "#22c55e55" : COLORS.border}`, borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 700, cursor: fhGhToken && !fhCommitting ? "pointer" : "not-allowed" }}
+              >
+                {fhCommitting ? "Committing..." : "Commit to GitHub"}
+              </button>
+            </div>
+            {fhCommitStatus && <div style={{ fontSize: 11, color: COLORS.textMuted, width: "100%" }}>{fhCommitStatus}</div>}
+          </div>
+        )}
+
+        {/* Export panel */}
+        {fhShowExport && (
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>sources_master.json — copy and commit to repo</span>
+              <button onClick={() => { navigator.clipboard.writeText(fhExportJSON()); }} style={{ background: COLORS.accent + "22", color: COLORS.accent, border: `1px solid ${COLORS.accent + "44"}`, borderRadius: 6, padding: "3px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+                Copy
+              </button>
+            </div>
+            <textarea readOnly value={fhExportJSON()} style={{ ...inputStyle, height: 200, fontFamily: "monospace", fontSize: 10, resize: "vertical" }} />
+          </div>
+        )}
+
+        {/* Filter bar */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            placeholder="Search sources..."
+            value={fhFilter.search}
+            onChange={e => setFhFilter(f => ({ ...f, search: e.target.value }))}
+            style={{ ...inputStyle, width: 220, padding: "6px 12px" }}
+          />
+          {[
+            { label: "Status", key: "status", opts: ["All", "Active", "Paused"] },
+            { label: "Type", key: "type", opts: ["All", ...TYPE_OPTIONS] },
+            { label: "Destination", key: "dest", opts: ["All", "inbox", "karptube", "screened"] },
+          ].map(({ label, key, opts }) => (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600 }}>{label}</label>
+              <select value={fhFilter[key]} onChange={e => setFhFilter(f => ({ ...f, [key]: e.target.value }))} style={selectStyle}>
+                {opts.map(o => <option key={o} value={o}>{o === "All" ? `All ${label}s` : o}</option>)}
+              </select>
+            </div>
+          ))}
+          <span style={{ fontSize: 11, color: COLORS.textMuted, marginLeft: "auto" }}>{filtered.length} of {total}</span>
+        </div>
+
+        {/* Source table */}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr>
+                {["Source", "Type", "Destination", "Category", "Status", "Last Run", "Last Count", "Total Items", ""].map(h => (
+                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: COLORS.textMuted, borderBottom: `2px solid ${COLORS.border}`, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((src, i) => {
+                const tm = TYPE_META[src.type] || { label: src.type?.toUpperCase(), color: COLORS.textMuted, symbol: "·" };
+                const dm = DEST_META[src.destination] || { label: src.destination?.toUpperCase(), color: COLORS.textMuted };
+                const isActive = src.status === "active";
+                const stats = src.stats || {};
+                return (
+                  <tr key={src.id} style={{ borderBottom: `1px solid ${COLORS.border}`, background: i % 2 === 0 ? "transparent" : COLORS.card + "44" }}>
+                    <td style={{ padding: "10px 10px", maxWidth: 260 }}>
+                      <div style={{ fontWeight: 600, color: COLORS.text, marginBottom: 2 }}>{src.name}</div>
+                      <div style={{ fontSize: 10, color: COLORS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>
+                        {src.handle ? `@${src.handle}` : src.query ? `"${src.query}"` : src.url || "—"}
+                      </div>
+                      {src._new && <span style={{ fontSize: 9, background: COLORS.accent + "22", color: COLORS.accent, padding: "1px 6px", borderRadius: 10, letterSpacing: 0.5 }}>NEW</span>}
+                    </td>
+                    <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
+                      <span style={{ background: tm.color + "22", color: tm.color, padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>
+                        {tm.symbol} {tm.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
+                      <span style={{ background: dm.color + "22", color: dm.color, padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>
+                        {dm.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 10px", fontSize: 11, color: COLORS.textMuted, whiteSpace: "nowrap" }}>
+                      {src.category || "—"}
+                    </td>
+                    <td style={{ padding: "10px 10px" }}>
+                      <button
+                        onClick={() => fhToggleStatus(src.id)}
+                        style={{ background: isActive ? "#22c55e22" : "#f59e0b22", color: isActive ? "#22c55e" : "#f59e0b", border: `1px solid ${isActive ? "#22c55e55" : "#f59e0b55"}`, borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5, whiteSpace: "nowrap" }}
+                      >
+                        {isActive ? "ACTIVE" : "PAUSED"}
+                      </button>
+                    </td>
+                    <td style={{ padding: "10px 10px", fontSize: 11, color: COLORS.textMuted, whiteSpace: "nowrap" }}>
+                      {fmtDate(stats.last_run)}
+                    </td>
+                    <td style={{ padding: "10px 10px", fontSize: 11, color: stats.last_count > 0 ? COLORS.accent : COLORS.textMuted, fontWeight: stats.last_count > 0 ? 700 : 400, whiteSpace: "nowrap" }}>
+                      {stats.last_count != null ? stats.last_count : "—"}
+                    </td>
+                    <td style={{ padding: "10px 10px", fontSize: 12, color: COLORS.text, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {stats.total_items != null ? stats.total_items.toLocaleString() : "—"}
+                    </td>
+                    <td style={{ padding: "10px 10px", whiteSpace: "nowrap" }}>
+                      {src.url && (
+                        <a href={src.url} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.accent, fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>
+                          OPEN
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 0", color: COLORS.textMuted, fontSize: 13 }}>
+              No sources match current filters
+            </div>
+          )}
+        </div>
+
+        {/* Add Source Modal */}
+        {fhShowAdd && (
+          <div style={{ position: "fixed", inset: 0, background: "#00000088", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={e => { if (e.target === e.currentTarget) setFhShowAdd(false); }}>
+            <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 24, width: 480, maxWidth: "95vw", maxHeight: "90vh", overflowY: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.accent }}>Add New Source</div>
+                <button onClick={() => setFhShowAdd(false)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", fontSize: 18 }}>✕</button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[
+                  { label: "Source Name *", field: "name", type: "text", placeholder: "e.g. Breaking Defense" },
+                  { label: "Source Type *", field: "type", type: "select", options: TYPE_OPTIONS },
+                  { label: "Destination *", field: "destination", type: "select", options: ["inbox", "karptube", "screened"] },
+                  { label: "Category", field: "category", type: "select", options: CAT_OPTIONS },
+                  { label: "URL (RSS feed, page URL, YouTube URL)", field: "url", type: "text", placeholder: "https://..." },
+                  { label: "X Handle (without @)", field: "handle", type: "text", placeholder: "e.g. PalantirTech" },
+                  { label: "YouTube Channel ID", field: "channel_id", type: "text", placeholder: "e.g. UCXDlpGEFdP4i_JBDpQoAOyg" },
+                  { label: "Search Query (for DDG sources)", field: "query", type: "text", placeholder: "e.g. Palantir contract award 2026" },
+                  { label: "Description", field: "description", type: "text", placeholder: "Optional" },
+                  { label: "Note", field: "note", type: "text", placeholder: "Optional" },
+                ].map(({ label, field, type, placeholder, options }) => (
+                  <div key={field}>
+                    <label style={{ fontSize: 10, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 1, fontWeight: 600, display: "block", marginBottom: 4 }}>{label}</label>
+                    {type === "select" ? (
+                      <select value={fhAddForm[field]} onChange={e => setFhAddForm(f => ({ ...f, [field]: e.target.value }))} style={{ ...selectStyle, width: "100%" }}>
+                        {options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type={type} placeholder={placeholder} value={fhAddForm[field] || ""} onChange={e => setFhAddForm(f => ({ ...f, [field]: e.target.value }))} style={inputStyle} />
+                    )}
+                  </div>
+                ))}
+                <div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: COLORS.text }}>
+                    <input type="checkbox" checked={fhAddForm.filter_palantir} onChange={e => setFhAddForm(f => ({ ...f, filter_palantir: e.target.checked }))} />
+                    Require "palantir" in text (filter_palantir)
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                  <button onClick={fhAddSource} disabled={!fhAddForm.name.trim()} style={{ flex: 1, background: COLORS.accent, color: "#000", border: "none", borderRadius: 8, padding: "10px", fontSize: 13, fontWeight: 700, cursor: fhAddForm.name.trim() ? "pointer" : "not-allowed", opacity: fhAddForm.name.trim() ? 1 : 0.5 }}>
+                    Add Source
+                  </button>
+                  <button onClick={() => setFhShowAdd(false)} style={{ flex: 1, background: COLORS.card, color: COLORS.textMuted, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px", fontSize: 13, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  };
+
   const renderKarpTube = () => {
     const TYPE_ORDER = ["All", "news", "article", "press_release", "rss", "newsletter", "blog", "podcast", "video", "x_search", "x_post", "web_search", "sec_filing", "contract_api", "official"];
 
@@ -3007,6 +3395,7 @@ function PalantirDashboard() {
         {tab === "Financials" && renderFinancials()}
         {tab === "PLTR Docs" && renderPalantirDocs()}
         {tab === "Sources" && renderSources()}
+        {tab === "Feed Hub" && renderFeedHub()}
         {tab === "KarpTube" && renderKarpTube()}
         {tab === "Inbox" && renderInbox()}
       </div>

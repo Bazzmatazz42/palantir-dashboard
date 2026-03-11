@@ -39,6 +39,6 @@ jobs:
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
-          git add palantir-dashboard/pending.js scraper/seen_ids.json palantir-dashboard/karptube.js scraper/karptube_seen_ids.json
+          git add palantir-dashboard/pending.js scraper/seen_ids.json palantir-dashboard/karptube.js scraper/karptube_seen_ids.json palantir-dashboard/sources_master.json palantir-dashboard/sources_master.js
           git diff --staged --quiet && echo "No changes to commit" || \
             git commit -m "chore: scraper update $(date -u +%Y-%m-%d)" && git push

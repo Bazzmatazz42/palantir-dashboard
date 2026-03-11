@@ -107,6 +107,25 @@ All in sources_config.json podcasts array, display-only in Sources panel (no scr
 - Export Approved button: always visible, generates JS to paste into data.js
 - Daily Sources panel: all configured sources with descriptions, sort/filter, live contribution counts
 
+## KarpTube Tab
+- Tab exists in app.jsx, reads from window.KARPTUBE_ITEMS (karptube.js)
+- karptube_scraper.py runs independently via GitHub Actions, writes to karptube.js
+- Wide-net: Google News, defense RSS, Substacks, Reddit, YouTube, DuckDuckGo
+- Rolling 1000-item window, 7-day cutoff
+
+## Screener (scraper/screener.py)
+- Added deal/revenue signal screener to main.py pipeline
+- score >= 3 → Inbox (pending.js); score < 3 → KarpTube (karptube.js)
+- Auto-pass: contract_api, sec_edgar source types (always Inbox)
+- Palantir IR: auto-pass only if deal terms present
+- Scored signals: contract language (+3), dollar values (+3), deal actions (+2),
+  customer names (+2), expansion language (+1), business metrics (+1)
+- Noise penalty: stock price commentary, retail investor talk, etc.
+- Customer list: all US cabinet depts (incl. Dept of War — renamed from DoD 2025),
+  all military branches/combatant commands, full IC list, law enforcement,
+  civilian agencies, international allies, prime contractors
+- screen_score and screen_reason fields stamped on every item
+
 ## Pending / Not Yet Done
 - data.js merge still manual — Export Approved button bridges the gap
 - YouTube scraper not built — podcasts are display-only in Sources panel

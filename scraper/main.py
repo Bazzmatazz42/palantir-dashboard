@@ -23,6 +23,7 @@ from scrapers import (
     rss_feeds, web_search,
 )
 from screener import is_inbox_item
+import source_registry
 
 
 def load_config():
@@ -117,14 +118,20 @@ def run():
     # --- Tier 3: RSS feeds ---
     print("\n=== RSS Feeds ===")
     try:
-        all_items.extend(rss_feeds.scrape(config["rss_feeds"]))
+        # Load source registry
+        registry = source_registry.load()
+        # RSS sources with destination screened or inbox
+        screened_rss = source_registry.get_rss_sources(destinations=["inbox", "screened"])
+        all_items.extend(rss_feeds.scrape(screened_rss))
     except Exception as e:
         print(f"[main] RSS scraper failed: {e}")
 
     # --- Tier 3: Web/X search ---
     print("\n=== Web / X Search ===")
     try:
-        all_items.extend(web_search.scrape(config["x_accounts"]))
+        # X handles with destination screened or inbox
+        screened_x = source_registry.get_x_handles(destinations=["inbox", "screened"])
+        all_items.extend(web_search.scrape(screened_x))
     except Exception as e:
         print(f"[main] Web search scraper failed: {e}")
 
@@ -177,6 +184,11 @@ def run():
         print(f"[main] KarpTube updated: {len(new_karptube)} new items added")
 
     save_seen_ids(seen_ids)
+
+    # Update stats and save registry
+    # (Basic stats - we don't have per-source counts easily, update total run time)
+    source_registry.save()
+
     print(f"[main] Done. Inbox: {len(merged_pending)} | KarpTube: {len(existing_karptube) + len(new_karptube)}")
 
 
