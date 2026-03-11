@@ -7,9 +7,11 @@ Every item from main.py passes through score_item() before routing:
 """
 
 # ---------------------------------------------------------------------------
-# Auto-pass source types — skip scoring entirely, always go to Inbox
+# Auto-pass source types — skip scoring entirely, always go to Inbox.
+# NOTE: contract_api is intentionally EXCLUDED — those items are auto-merged
+# directly to data.js by main.py, so they never need to go through Inbox.
 # ---------------------------------------------------------------------------
-INBOX_SOURCE_TYPES = {"contract_api", "sec_edgar"}
+INBOX_SOURCE_TYPES = {"sec_edgar"}
 
 # Palantir IR items: pass if text contains any deal term, else KarpTube
 PALANTIR_IR_DEAL_TERMS = {
@@ -220,20 +222,30 @@ def score_item(item):
     source_type = item.get("source_type", "")
     source = item.get("source", "")
 
-    # Auto-pass: contract APIs and SEC filings always go to Inbox
+    # NOTE: contract_api items are auto-merged directly to data.js by main.py
+    # and do NOT reach the Inbox. INBOX_SOURCE_TYPES now only covers sec_edgar.
+
+    # Auto-pass: SEC filings always go to Inbox
     if source_type in INBOX_SOURCE_TYPES:
         return 10, f"auto-pass: {source_type}"
 
+    # --- Mandatory Palantir mention gate ---
+    # ALL non-auto-pass items must explicitly mention Palantir or PLTR.
+    # This prevents generic financial news (Match Group, Nature's Sunshine, etc.)
+    # from scoring into the Inbox just because their snippets contain " million".
+    text = (item.get("title", "") + " " + item.get("snippet", "")).lower()
+    if "palantir" not in text and "pltr" not in text:
+        return 0, "no Palantir mention"
+
     # Palantir IR: pass only if deal terms present
     if source_type == "palantir_ir" or "palantir ir" in source.lower():
-        text = (item.get("title", "") + " " + item.get("snippet", "")).lower()
         matched = [t for t in PALANTIR_IR_DEAL_TERMS if t in text]
         if matched:
             return 8, f"auto-pass: Palantir IR with deal terms ({', '.join(matched[:3])})"
         return 1, "Palantir IR — no deal terms found"
 
     # Keyword scoring for RSS / web / X items
-    text = (item.get("title", "") + " " + item.get("snippet", "")).lower()
+    # text is already computed above
     score = 0
     reasons = []
 
