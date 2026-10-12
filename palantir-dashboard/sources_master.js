@@ -1,7 +1,7 @@
-// Auto-generated from sources_master.json. Last updated: 2026-10-11T21:45:35Z
+// Auto-generated from sources_master.json. Last updated: 2026-10-12T05:37:01Z
 window.SOURCES_MASTER = {
   "version": "1.0",
-  "updated": "2026-10-11T21:45:35.437879+00:00",
+  "updated": "2026-10-12T05:37:01.256373+00:00",
   "sources": [
     {
       "id": "src_001",
